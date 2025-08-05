@@ -1,0 +1,24 @@
+{
+  "id_cultivo": "tomate_rio_grande",
+  "nombre_cultivo": "Tomate (Variedad Río Grande)",
+  "etapas_gdd": {
+    "germinacion": 0, "vegetativo": 350, "floracion": 650, "fructificacion": 950, "cosecha": 1300
+  },
+  "parametros_gdd": {
+    "temp_base_celsius": 10, "gdd_para_cosecha": 1300
+  },
+  "parametros_optimos": {
+    "temperatura_dia_celsius": [21, 27],
+    "humedad_aire_porcentaje": [60, 70],
+    "humedad_suelo_porcentaje": [60, 70],
+    "ph_suelo": [6.0, 6.8],
+    "luz_par_umol_m2_s": [1800, 2200],
+    "co2_ppm": [800, 1200]
+  },
+  "parametros_criticos": {
+    "temperatura_max_estres": 33,
+    "temperatura_min_helada": 2,
+    "humedad_suelo_min_estres": 45,
+    "humedad_aire_max_enfermedad": 85
+  }
+}

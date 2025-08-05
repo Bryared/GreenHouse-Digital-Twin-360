@@ -1,0 +1,24 @@
+{
+  "id_cultivo": "aguaymanto",
+  "nombre_cultivo": "Aguaymanto (Goldenberry)",
+  "etapas_gdd": {
+    "germinacion": 0, "vegetativo": 400, "floracion": 800, "fructificacion": 1200, "cosecha": 1600
+  },
+  "parametros_gdd": {
+    "temp_base_celsius": 7, "gdd_para_cosecha": 1600
+  },
+  "parametros_optimos": {
+    "temperatura_dia_celsius": [15, 20],
+    "humedad_aire_porcentaje": [70, 80],
+    "humedad_suelo_porcentaje": [55, 65],
+    "ph_suelo": [5.5, 6.5],
+    "luz_par_umol_m2_s": [1500, 2000],
+    "co2_ppm": [400, 800]
+  },
+  "parametros_criticos": {
+    "temperatura_max_estres": 28,
+    "temperatura_min_helada": -2,
+    "humedad_suelo_min_estres": 40,
+    "humedad_aire_max_enfermedad": 92
+  }
+}

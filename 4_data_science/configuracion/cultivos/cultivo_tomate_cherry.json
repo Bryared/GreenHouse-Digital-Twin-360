@@ -1,0 +1,24 @@
+{
+  "id_cultivo": "tomate_cherry",
+  "nombre_cultivo": "Tomate (Variedad Cherry)",
+  "etapas_gdd": {
+    "germinacion": 0, "vegetativo": 300, "floracion": 600, "fructificacion": 900, "cosecha": 1200
+  },
+  "parametros_gdd": {
+    "temp_base_celsius": 10, "gdd_para_cosecha": 1200
+  },
+  "parametros_optimos": {
+    "temperatura_dia_celsius": [20, 26],
+    "humedad_aire_porcentaje": [65, 75],
+    "humedad_suelo_porcentaje": [65, 75],
+    "ph_suelo": [5.8, 6.5],
+    "luz_par_umol_m2_s": [1700, 2100],
+    "co2_ppm": [800, 1200]
+  },
+  "parametros_criticos": {
+    "temperatura_max_estres": 31,
+    "temperatura_min_helada": 3,
+    "humedad_suelo_min_estres": 50,
+    "humedad_aire_max_enfermedad": 88
+  }
+}

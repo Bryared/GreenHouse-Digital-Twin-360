@@ -1,0 +1,24 @@
+{
+  "id_cultivo": "fresa_san_andreas",
+  "nombre_cultivo": "Fresa (Variedad San Andreas)",
+  "etapas_gdd": {
+    "germinacion": 0, "vegetativo": 150, "floracion": 300, "fructificacion": 450, "cosecha": 550
+  },
+  "parametros_gdd": {
+    "temp_base_celsius": 4.5, "gdd_para_cosecha": 550
+  },
+  "parametros_optimos": {
+    "temperatura_dia_celsius": [18, 24],
+    "humedad_aire_porcentaje": [65, 75],
+    "humedad_suelo_porcentaje": [70, 80],
+    "ph_suelo": [5.8, 6.2],
+    "luz_par_umol_m2_s": [1200, 1600],
+    "co2_ppm": [700, 1000]
+  },
+  "parametros_criticos": {
+    "temperatura_max_estres": 29,
+    "temperatura_min_helada": -1,
+    "humedad_suelo_min_estres": 55,
+    "humedad_aire_max_enfermedad": 90
+  }
+}

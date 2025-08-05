@@ -1,0 +1,24 @@
+{
+  "id_cultivo": "lechuga_organica",
+  "nombre_cultivo": "Lechuga (Orgánica)",
+  "etapas_gdd": {
+    "germinacion": 0, "vegetativo": 150, "desarrollo_cabeza": 300, "cosecha": 450
+  },
+  "parametros_gdd": {
+    "temp_base_celsius": 4, "gdd_para_cosecha": 450
+  },
+  "parametros_optimos": {
+    "temperatura_dia_celsius": [16, 22],
+    "humedad_aire_porcentaje": [60, 75],
+    "humedad_suelo_porcentaje": [70, 80],
+    "ph_suelo": [6.5, 7.0],
+    "luz_par_umol_m2_s": [1000, 1400],
+    "co2_ppm": [600, 1000]
+  },
+  "parametros_criticos": {
+    "temperatura_max_estres": 25,
+    "temperatura_min_helada": 0,
+    "humedad_suelo_min_estres": 60,
+    "humedad_aire_max_enfermedad": 90
+  }
+}
