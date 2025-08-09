@@ -470,7 +470,7 @@ const SimulatorModule = () => {
 // --- CAPA 2: ORÁCULO ESTRATÉGICO (MÓDULO PERFECCIONADO) ---
 
 // Componente para la visualización individual de la planta en la cuadrícula
-const PlantVisualizer = ({ growth, hasPest, isSelected }) => {
+const PlantVisualizer1 = ({ growth, hasPest, isSelected }) => {
     let PlantIcon = Sprout;
     let color = 'text-yellow-500';
     let sizeClass = 'w-6 h-6';
@@ -488,7 +488,7 @@ const PlantVisualizer = ({ growth, hasPest, isSelected }) => {
 };
 
 // El nuevo simulador "Tycoon"
-const SimulatorModule = () => {
+const SimulatorModule1 = () => {
     const [simulationResult, setSimulationResult] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [marketPrice, setMarketPrice] = useState({ Tomate: 3.50, Lechuga: 2.80, Arándano: 12.50 });
@@ -600,7 +600,7 @@ const SimulatorModule = () => {
                                 <h3 className="text-2xl font-bold text-white mb-4">Invernadero Virtual 2D "Tycoon"</h3>
                                 <div className="grid grid-cols-6 gap-2 bg-stone-800 p-2 rounded-lg">
                                     {simHistory[currentDay]?.plants.map(plant => (
-                                        <PlantVisualizer key={plant.id} growth={plant.growth} hasPest={plant.hasPest} />
+                                        <PlantVisualizer1 key={plant.id} growth={plant.growth} hasPest={plant.hasPest} />
                                     ))}
                                 </div>
                                 <div className="mt-4">
@@ -992,7 +992,7 @@ export default function App() {
 
   const modules = {
       'dashboard': { label: 'Invernadero Conectado', component: <DashboardModule />, icon: Building },
-      'simulator': { label: 'Oráculo Estratégico', component: <SimulatorModule />, icon: Rocket },
+      'simulator': { label: 'Oráculo Estratégico', component: <SimulatorModule1 />, icon: Rocket },
       'cognitive': { label: 'Operador Cognitivo', component: <CognitiveModule />, icon: BrainCircuit },
       'future': { label: 'Visión Futura', component: <FutureModule />, icon: Globe }
   };
