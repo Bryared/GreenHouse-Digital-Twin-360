@@ -1,0 +1,118 @@
+# -*- coding: utf-8 -*-
+"""
+================================================================================
+EMISOR DE DATOS SIMULADOS (DOBLE DIGITAL DEL EDGE) GDT-360 v1.0
+================================================================================
+Misión:
+    Actuar como un sustituto de alta fidelidad del 'controlador_edge' que
+    correrá en la Raspberry Pi. Este script utiliza el motor de simulación
+    para generar datos realistas y los publica en el Broker MQTT,
+    desbloqueando el desarrollo del backend y frontend en paralelo.
+"""
+
+import paho.mqtt.client as mqtt
+import time
+import json
+import os
+import sys
+
+# --- CONFIGURACIÓN ---
+# Añadir la raíz del proyecto al path para poder importar el motor de simulación
+# Esto hace que el script sea robusto y se pueda ejecutar desde cualquier lugar.
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(project_root)
+
+try:
+    # Intenta importar el MotorSimulacion desde tu dominio de Data Science
+    from 4_data_science.simulation.source.motor_simulacion import MotorSimulacion, GeneradorEscenariosGemini
+except ImportError:
+    print("ERROR CRÍTICO: No se pudo importar el 'motor_simulacion.py'.")
+    print("             Asegúrese de que la estructura de carpetas es correcta y que los archivos __init__.py existen si son necesarios.")
+    sys.exit(1)
+
+# Configuración del Broker MQTT (Beebotte)
+# TODO: Mover a un archivo de configuración o variables de entorno
+MQTT_BROKER_HOST = "mqtt.beebotte.com"
+MQTT_BROKER_PORT = 1883
+MQTT_TOKEN = "token_YOUR_CHANNEL_TOKEN" # ¡IMPORTANTE! Reemplazar con tu token de Beebotte
+MQTT_TOPIC_ESTADO = f"GDT360/estado"
+
+# --- LÓGICA DEL SIMULADOR ---
+
+def on_connect(client, userdata, flags, rc):
+    """Callback que se ejecuta cuando el cliente se conecta al broker."""
+    if rc == 0:
+        print("✅ CONECTADO exitosamente al Broker MQTT.")
+    else:
+        print(f"❌ FALLÓ la conexión al Broker, código de error: {rc}")
+
+def ejecutar_emisor_de_datos():
+    """
+    Función principal que ejecuta el ciclo de simulación y publicación.
+    """
+    print("INFO: Iniciando el emisor de datos simulados GDT-360...")
+
+    # 1. Cargar la configuración del cultivo
+    ruta_config_cultivo = os.path.join(project_root, "4_data_science", "configuracion", "cultivos", "cultivo_tomate_rio_grande.json")
+    
+    # 2. Generar el escenario climático
+    descripcion_escenario = "Un día típico de primavera en La Molina, Lima, con mañanas húmedas y tardes soleadas."
+    generador_ia = GeneradorEscenariosGemini()
+    escenario_df = generador_ia.generar_dataset_climatico(descripcion_escenario, dias=1) # Simulamos 1 día en un bucle
+    
+    # 3. Inicializar el motor de simulación
+    motor = MotorSimulacion(ruta_config_cultivo)
+
+    # 4. Configurar el cliente MQTT
+    client = mqtt.Client()
+    client.username_pw_set(username="token", password=MQTT_TOKEN)
+    client.on_connect = on_connect
+    
+    try:
+        client.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT, 60)
+        client.loop_start() # Inicia un hilo en segundo plano para manejar la red
+    except Exception as e:
+        print(f"ERROR CRÍTICO: No se pudo conectar al Broker MQTT. Verifique su conexión a internet y las credenciales. Error: {e}")
+        return
+
+    # 5. Bucle principal de publicación
+    print("\nINFO: Iniciando publicación de datos en el tópico:", MQTT_TOPIC_ESTADO)
+    print("      (Presiona CTRL+C para detener)") 
+    
+    dia_actual = 0
+    try:
+        while True:
+            # Obtener las condiciones del día actual (se repite para simulación continua)
+            condiciones_dia = escenario_df.iloc[0]
+            
+            # Simular un paso de tiempo (un "día")
+            motor.planta.crecer(condiciones_dia)
+            estado_actual = motor.planta.obtener_estado()
+            
+            # Añadir un poco de ruido para que los datos no sean idénticos
+            payload = {
+                "timestamp": int(time.time()),
+                "temperatura": float(condiciones_dia['temp_max']) + random.uniform(-0.5, 0.5),
+                "humedad_aire": 65 + random.uniform(-5, 5),
+                "humedad_suelo": 60 + random.uniform(-5, 5),
+                "etapa_cultivo": estado_actual['etapa'],
+                "porcentaje_cosecha": estado_actual['porcentaje_cosecha']
+            }
+            
+            # Publicar el payload como un string JSON
+            client.publish(MQTT_TOPIC_ESTADO, json.dumps(payload, indent=4))
+            
+            print(f"-> Publicado: Temp={payload['temperatura']:.1f}°C, Humedad={payload['humedad_aire']:.1f}%")
+            
+            # Esperar para el siguiente ciclo
+            time.sleep(5) # Publica un nuevo dato cada 5 segundos
+
+    except KeyboardInterrupt:
+        print("\nINFO: Deteniendo el emisor de datos...")
+    finally:
+        client.loop_stop()
+        client.disconnect()
+        print("INFO: Desconectado del Broker MQTT. ¡Hasta luego!")
+
+if __name__ == "__main__":
+    ejecutar_emisor_de_datos()
