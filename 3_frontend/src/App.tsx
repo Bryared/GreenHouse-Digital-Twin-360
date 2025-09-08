@@ -5,6 +5,10 @@ import React, {
   useContext,
   useRef,
 } from "react";
+// --- IMPORTS PARA EL VISOR 3D ---
+import { Color } from 'three';
+import { IfcViewerAPI } from 'web-ifc-viewer';
+// --- IMPORTS PARA GRÁFICOS ---
 import {
   AreaChart,
   Area,
