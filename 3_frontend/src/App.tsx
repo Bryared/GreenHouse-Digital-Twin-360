@@ -265,25 +265,74 @@ const CameraFeed = () => {
   );
 };
 
-const BimViewer = () => (
-  <Card className="h-full flex flex-col">
-    <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-      <Box className="mr-2" />
-      Gemelo Digital BIM
-    </h3>
-    <div className="flex-grow bg-gray-900/50 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-700">
-      <div className="text-center text-gray-500">
-        <Box size={48} className="mx-auto" />
-        <p className="mt-2 font-semibold">Cargando Modelo BIM...</p>
-        <p className="text-xs">(Aquí se integrará el visor `web-ifc-viewer`)</p>
-      </div>
-    </div>
-    <p className="text-xs text-gray-500 mt-2 text-center">
-      Interactúa con la réplica 1:1 de tu invernadero.
-    </p>
-  </Card>
-);
+// App.tsx - REEMPLAZA TU COMPONENTE BimViewer CON ESTE CÓDIGO COMPLETO
 
+const BimViewer = () => {
+  // useRef nos da un "ancla" para conectar nuestra lógica de React con un elemento DIV específico en el DOM.
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // useEffect se ejecuta después de que el componente se renderiza. Es el lugar ideal para
+  // inicializar librerías de terceros que manipulan el DOM, como web-ifc-viewer.
+  useEffect(() => {
+    // Si por alguna razón el div no se ha renderizado, detenemos la ejecución.
+    if (!containerRef.current) return;
+
+    const container = containerRef.current;
+
+    // 1. INICIALIZACIÓN DE LA ESCENA 3D
+    // Creamos una nueva instancia del visor, pasándole el contenedor HTML y un color de fondo
+    // que coincida con el tema oscuro de tu aplicación.
+    const viewer = new IfcViewerAPI({
+      container,
+      backgroundColor: new Color(0x1a202c), // Coincide con bg-gray-900
+    });
+
+    // 2. CONFIGURACIÓN DEL ENTORNO
+    // Añadimos una rejilla y ejes para dar un mejor sentido de escala y orientación.
+    viewer.grid.setGrid(50, 50);
+    viewer.axes.setAxes();
+
+    // 3. CARGA DEL MODELO IFC
+    // Esta función es asíncrona porque la carga de un modelo puede tardar.
+    async function loadIfcModel() {
+      // Indicamos a la librería dónde encontrar sus archivos de apoyo (WebAssembly).
+      await viewer.IFC.setWasmPath('/');
+
+      // ¡La línea clave! Cargamos el modelo desde la carpeta `public`.
+      const model = await viewer.IFC.loadIfcUrl('/mini_invernadero_BIM_v1.ifc');
+
+      // Para un mejor acabado visual, activamos el post-procesamiento y renderizamos una sombra.
+      viewer.context.renderer.postProduction.active = true;
+      await viewer.shadowDropper.renderShadow(model.modelID);
+    }
+
+    loadIfcModel();
+
+    // 4. LIMPIEZA DE MEMORIA
+    // Esta función se ejecuta cuando el componente se va a "desmontar" (por ejemplo, al cambiar de pestaña).
+    // Es VITAL para liberar los recursos de la tarjeta gráfica (WebGL) y evitar fugas de memoria.
+    return () => {
+      viewer.dispose();
+    };
+  }, []); // El array vacío `[]` asegura que este código se ejecute SOLO UNA VEZ.
+
+  return (
+    <Card className="h-full flex flex-col">
+      <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+        <Box className="mr-2" />
+        Gemelo Digital BIM
+      </h3>
+      
+      {/* Este div es el contenedor que hemos "anclado" con `containerRef`.
+          Toma todo el espacio disponible gracias a flex-grow. */}
+      <div ref={containerRef} className="flex-grow rounded-lg w-full h-full" />
+      
+      <p className="text-xs text-gray-500 mt-2 text-center">
+        Interactúa con la réplica 1:1 de tu invernadero.
+      </p>
+    </Card>
+  );
+};
 const ControlPanel = () => {
   const [controls, setControls] = useState({
     ventilacion: false,
