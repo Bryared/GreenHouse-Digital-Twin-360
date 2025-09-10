@@ -356,7 +356,7 @@ const BimViewer = () => {
       await viewer.IFC.setWasmPath('/');
 
       // ¡La línea clave! Cargamos el modelo desde la carpeta `public`.
-      const model = await viewer.IFC.loadIfcUrl('/mini_invernadero_BIM_v1.ifc');
+      const model = await viewer.IFC.loadIfcUrl('/algo.ifc');
 
       // Para un mejor acabado visual, activamos el post-procesamiento y renderizamos una sombra.
       viewer.context.renderer.postProduction.active = true;
