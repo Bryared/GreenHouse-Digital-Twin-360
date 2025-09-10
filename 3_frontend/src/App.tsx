@@ -44,7 +44,6 @@ import {
   Globe,
   Tractor,
   Rocket,
-  ChevronRight,
   AlertTriangle,
   CheckCircle,
   Power,
@@ -56,11 +55,7 @@ import {
   Box,
   Map,
   Cpu,
-  GitBranch,
-  Share2,
-  Code,
   Factory,
-  Dna,
   DollarSign,
   Pause,
   Play,
@@ -76,7 +71,26 @@ import {
   Zap,
 } from "lucide-react";
 
-const ModeSwitcher = ({ isSimulation, onToggle }) => (
+// --- DEFINICIÓN DE TIPOS DE DATOS ---
+interface SensorData {
+  name: string;
+  temperatura: string;
+  humedadAire: string;
+  humedadSuelo: string;
+  luz: number;
+  co2: number;
+  phSuelo: string;
+  consumoEnergia: string;
+  nivelAguaTanque: string;
+  timestamp: number;
+  // ... y cualquier otro campo que necesites
+}
+
+interface ComponentProps {
+  children: React.ReactNode;
+}
+
+const ModeSwitcher = ({ isSimulation, onToggle }: { isSimulation: boolean; onToggle: () => void }) => (
   <div className="flex items-center space-x-2 bg-gray-700 p-1 rounded-lg">
     <span className="text-xs font-bold text-gray-300">
       {isSimulation ? "SIMULADO" : "CONECTADO"}
@@ -120,9 +134,9 @@ const mockDataGenerator = () => ({
   timestamp: new Date().getTime(),
 });
 
-const DataProvider = ({ children, isSimulationMode }) => {
+const DataProvider = ({ children, isSimulationMode }: { children: React.ReactNode; isSimulationMode: boolean }) => {
   const [liveData, setLiveData] = useState(mockDataGenerator());
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState<SensorData[]>([]);
 
   useEffect(() => {
     console.log(`🚀 Cambiando a modo: ${isSimulationMode ? "Simulado" : "Conectado"}`);
@@ -177,7 +191,7 @@ const DataProvider = ({ children, isSimulationMode }) => {
 const useData = () => useContext(DataContext);
 
 // --- COMPONENTES DE UI REUTILIZABLES ---
-const Card = ({ children, className = "" }) => (
+const Card = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
   <div
     className={`bg-gray-800/50 border border-gray-700 rounded-xl shadow-lg p-4 backdrop-blur-sm ${className}`}
   >
@@ -185,7 +199,7 @@ const Card = ({ children, className = "" }) => (
   </div>
 );
 
-const KpiCard = ({ icon, title, value, unit, color }) => (
+const KpiCard = ({ icon, title, value, unit, color }: { icon: React.ReactNode; title: string; value: string | number; unit: string; color: string }) => (
   <Card className="flex flex-col justify-between text-center">
     <div className="flex items-center text-gray-400 justify-center">
       {icon}
@@ -198,7 +212,7 @@ const KpiCard = ({ icon, title, value, unit, color }) => (
   </Card>
 );
 
-const ToggleButton = ({ icon, label, isActive, onToggle }) => (
+const ToggleButton = ({ icon, label, isActive, onToggle }: { icon: React.ReactNode; label: string; isActive: boolean; onToggle: () => void }) => (
   <div className="flex items-center justify-between">
     <div className="flex items-center">
       {icon}
