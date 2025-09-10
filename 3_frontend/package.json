@@ -15,7 +15,9 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "rechart": "0.0.1",
-    "recharts": "3.1.2"
+    "recharts": "3.1.2",
+    "three": "^0.180.0",
+    "web-ifc-viewer": "^1.0.218"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
