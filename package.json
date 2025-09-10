@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "three": "^0.135.0",
+    "web-ifc-viewer": "^1.0.218"
+  }
+}
