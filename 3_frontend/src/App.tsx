@@ -76,6 +76,26 @@ import {
   Zap,
 } from "lucide-react";
 
+const ModeSwitcher = ({ isSimulation, onToggle }) => (
+  <div className="flex items-center space-x-2 bg-gray-700 p-1 rounded-lg">
+    <span className="text-xs font-bold text-gray-300">
+      {isSimulation ? "SIMULADO" : "CONECTADO"}
+    </span>
+    <button
+      onClick={onToggle}
+      className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors duration-300 ${
+        isSimulation ? "bg-yellow-500" : "bg-green-500"
+      }`}
+    >
+      <span
+        className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${
+          isSimulation ? "translate-x-1" : "translate-x-6"
+        }`}
+      />
+    </button>
+  </div>
+);
+
 // --- CONTEXTO DE DATOS (PREPARADO PARA CONEXIÓN REAL) ---
 const DataContext = createContext();
 
@@ -89,44 +109,63 @@ const mockDataGenerator = () => ({
   consumoEnergia: (150 + Math.random() * 50).toFixed(2), // Watts
   nivelAguaTanque: (85 + Math.random() * 15).toFixed(1), // %
   timestamp: new Date().getTime(),
+  // En App.tsx, reemplaza el mockDataGenerator
+  z1: { humedadSuelo: (65 + Math.random() * 5).toFixed(1), phSuelo: (6.1 + Math.random() * 0.2).toFixed(2) },
+  z2: { humedadSuelo: (68 + Math.random() * 5).toFixed(1), phSuelo: (6.3 + Math.random() * 0.2).toFixed(2) },
+  z3: { humedadSuelo: (66 + Math.random() * 5).toFixed(1), phSuelo: (6.2 + Math.random() * 0.2).toFixed(2) },
+  z4: { humedadSuelo: (70 + Math.random() * 5).toFixed(1), phSuelo: (6.4 + Math.random() * 0.2).toFixed(2) },
+  z5: { humedadSuelo: (67 + Math.random() * 5).toFixed(1), phSuelo: (6.0 + Math.random() * 0.2).toFixed(2) },
+  ambiente: { temperatura: (24 + Math.random() * 2).toFixed(1), humedadAire: (70 + Math.random() * 8).toFixed(1), luz: Math.floor(900 + Math.random() * 300), co2: Math.floor(450 + Math.random() * 100) },
+  control: { consumoEnergia: (170 + Math.random() * 30).toFixed(2), nivelAguaTanque: (90 + Math.random() * 10).toFixed(1) },
+  timestamp: new Date().getTime(),
 });
 
-const DataProvider = ({ children }) => {
+const DataProvider = ({ children, isSimulationMode }) => {
   const [liveData, setLiveData] = useState(mockDataGenerator());
-  const [history, setHistory] = useState(() => {
-    const initialHistory = [];
-    for (let i = 0; i < 30; i++) {
-      initialHistory.push({
-        ...mockDataGenerator(),
-        name: new Date(Date.now() - (29 - i) * 60000).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      });
-    }
-    return initialHistory;
-  });
+  const [history, setHistory] = useState([]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      const newData = mockDataGenerator();
-      setLiveData(newData);
-      setHistory((prevHistory) => {
-        const newHistory = [
-          ...prevHistory.slice(1),
-          {
-            ...newData,
-            name: new Date().toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          },
-        ];
-        return newHistory;
-      });
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+    console.log(`🚀 Cambiando a modo: ${isSimulationMode ? "Simulado" : "Conectado"}`);
+
+    if (isSimulationMode) {
+      // --- MODO SIMULADO ---
+      const initialHistory = [];
+      for (let i = 0; i < 30; i++) { initialHistory.push({ ...mockDataGenerator(), name: new Date(Date.now() - (29 - i) * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }); }
+      setHistory(initialHistory);
+      
+      const interval = setInterval(() => {
+        const newData = mockDataGenerator();
+        setLiveData(newData);
+        setHistory((prev) => [...prev.slice(1), { ...newData, name: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
+      }, 3000);
+      
+      return () => clearInterval(interval);
+
+    } else {
+      // --- MODO CONECTADO ---
+      let mqttClient;
+      const connectToRealData = async () => {
+        try {
+          const response = await fetch('http://<IP_DE_TU_RASPBERRY_PI>:8000/sensores');
+          const data = await response.json();
+          setHistory(data.map(r => ({...r, name: new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})));
+          console.log('✅ Historial de datos cargado.');
+        } catch (error) { console.error("❌ Error al cargar historial:", error); }
+
+        mqttClient = mqtt.connect('wss://<URL_DE_TU_BROKER_MQTT>');
+        mqttClient.on('connect', () => {
+          console.log('✅ Conectado a MQTT.');
+          mqttClient.subscribe('invernadero/sensores/live');
+        });
+        mqttClient.on('message', (topic, message) => {
+          setLiveData(JSON.parse(message.toString()));
+        });
+      };
+
+      connectToRealData();
+      return () => { if (mqttClient) mqttClient.end(); };
+    }
+  }, [isSimulationMode]);
 
   return (
     <DataContext.Provider value={{ liveData, history }}>
@@ -387,7 +426,7 @@ const AiRootCauseAnalysis = () => {
     setAnalysis(null);
     const prompt = `Actúa como un ingeniero de control y agrónomo experto para un invernadero de tomates en Lima, Perú. Se ha detectado una alerta de temperatura alta. Los datos actuales son: Temperatura=${liveData.temperatura}°C, Humedad Aire=${liveData.humedadAire}%, Humedad Suelo=${liveData.humedadSuelo}%. Basado en estos datos, genera un diagnóstico diferencial con la causa raíz más probable y sugiere una acción de mitigación inmediata. Sé conciso y directo, en formato: Causa Probable: [tu causa]. Acción Sugerida: [tu acción].`;
     try {
-      const apiKey = ""; // Recuerda poner tu clave de API de Google aquí
+      const apiKey = "AIzaSyAp3C7EUc5HmsmBXxBQC_IhohUNyLOpfWU"; // Recuerda poner tu clave de API de Google aquí
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
       const response = await fetch(apiUrl, {
         method: "POST",
@@ -470,6 +509,7 @@ const DashboardModule = () => {
     general: "Vista General",
     ambiental: "Análisis Ambiental",
     cultivo: "Salud del Cultivo",
+    mapa: "Mapa Táctico",
   };
 
   return (
@@ -563,11 +603,19 @@ const DashboardModule = () => {
         </div>
       )}
       {activeTab === "cultivo" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in h-[500px]">
           <CameraFeed />
-          <BimViewer />
+          <BimViewer /> 
         </div>
       )}
+
+      {/* ▼▼▼ AÑADE ESTE BLOQUE NUEVO ▼▼▼ */}
+      {activeTab === "mapa" && (
+        <div className="animate-fade-in h-[600px] p-4"> {/* Un contenedor para darle espacio */}
+          <GreenhouseMap2D />
+        </div>
+      )}
+
     </div>
   );
 };
@@ -1181,7 +1229,7 @@ const MultimodalDiagnosis = () => {
     setDiagnosis("");
     const prompt = `Actúa como un agrónomo experto y un sistema de IA avanzado (Diagnóstico Multimodal). Analiza el siguiente caso de un cultivo de tomate:\n\n**Evidencia Visual:** "${imageDesc}"\n**Datos de Sensores:**\n- pH del Suelo: ${sensorData.ph}\n- Humedad del Suelo: ${sensorData.humedad}%\n\nBasado en la SÍNTESIS de TODA esta información, proporciona un reporte estructurado:\n1. **Diagnóstico Principal:**\n2. **Diagnósticos Diferenciales (2 alternativas):**\n3. **Nivel de Confianza (ej. Alto, Medio, Bajo):**\n4. **Plan de Acción Sugerido (3 pasos cortos):**`;
     try {
-      const apiKey = ""; // Recuerda poner tu clave de API de Google aquí
+      const apiKey = "AIzaSyAp3C7EUc5HmsmBXxBQC_IhohUNyLOpfWU"; // Recuerda poner tu clave de API de Google aquí
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
       const response = await fetch(apiUrl, {
         method: "POST",
@@ -1307,7 +1355,7 @@ const AgroBotChat = () => {
 
     const prompt = `Eres AgroBot, un asistente de IA experto en agronomía para invernaderos de alta tecnología en Perú. Responde a la siguiente pregunta del usuario de forma concisa y amigable:\n\nUsuario: "${input}"`;
     try {
-      const apiKey = ""; // Recuerda poner tu clave de API de Google aquí
+      const apiKey = "AIzaSyAp3C7EUc5HmsmBXxBQC_IhohUNyLOpfWU"; // Recuerda poner tu clave de API de Google aquí
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
       const response = await fetch(apiUrl, {
         method: "POST",
@@ -1396,7 +1444,7 @@ const AdvancedAnalysis = () => {
     setLog("");
     const prompt = `Eres la IA del invernadero GDT-360. Basado en esta lista de eventos simulados del día [Riego automático Z-1, Alerta de Humedad Alta, Corrección manual de nutrientes, Detección visual de posible estrés hídrico en planta C-4], redacta una entrada de bitácora concisa, profesional y en formato Markdown para el agricultor.`;
     try {
-      const apiKey = ""; // Recuerda poner tu clave de API de Google aquí
+      const apiKey = "AIzaSyAp3C7EUc5HmsmBXxBQC_IhohUNyLOpfWU"; // Recuerda poner tu clave de API de Google aquí
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
       const response = await fetch(apiUrl, {
         method: "POST",
@@ -1828,6 +1876,157 @@ const FutureModule = () => {
   );
 };
 
+
+// Reemplaza tu componente GreenhouseMap2D existente con este
+const GreenhouseMap2D = () => {
+  const { liveData } = useData();
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [actuatorStates, setActuatorStates] = useState({ ventilador1: false, ventilador2: true, riego_z1: true, riego_z2: false, riego_z3: true, riego_z4: false, riego_z5: true, luces_z1: true, luces_z2: false, luces_z3: true, luces_z4: false, luces_z5: true });
+  const [aiAnalysis, setAiAnalysis] = useState("");
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
+
+  const mapItems = [
+    // --- ZONA DE CONTROL (IZQUIERDA) ---
+    { id: 'nivelAguaTanque', zone: 'control', name: 'Nivel Tanque de Agua', type: 'sensor', icon: <Pipette/>, top: '15%', left: '23%', unit: '%', description: 'Porcentaje de agua restante en el tanque de la caseta de bombeo.' },
+    { id: 'consumoEnergia', zone: 'control', name: 'Medidor Eléctrico', type: 'sensor', icon: <Power/>, top: '30%', left: '15%', unit: 'W', description: 'Consumo energético en tiempo real de todo el invernadero.' },
+    
+    // --- SENSORES DE CULTIVO (Z1-Z5) ---
+    { id: 'humedadSuelo', zone: 'z1', name: 'Humedad Suelo Z1', type: 'sensor', icon: <Leaf/>, top: '16%', left: '65%', unit: '%', description: 'Nivel de humedad en la cama de cultivo Z1.' },
+    { id: 'humedadSuelo', zone: 'z2', name: 'Humedad Suelo Z2', type: 'sensor', icon: <Leaf/>, top: '33%', left: '75%', unit: '%', description: 'Nivel de humedad en la cama de cultivo Z2.' },
+    { id: 'humedadSuelo', zone: 'z3', name: 'Humedad Suelo Z3', type: 'sensor', icon: <Leaf/>, top: '50%', left: '65%', unit: '%', description: 'Nivel de humedad en la cama de cultivo Z3.' },
+    { id: 'humedadSuelo', zone: 'z4', name: 'Humedad Suelo Z4', type: 'sensor', icon: <Leaf/>, top: '67%', left: '75%', unit: '%', description: 'Nivel de humedad en la cama de cultivo Z4.' },
+    { id: 'humedadSuelo', zone: 'z5', name: 'Humedad Suelo Z5', type: 'sensor', icon: <Leaf/>, top: '84%', left: '65%', unit: '%', description: 'Nivel de humedad en la cama de cultivo Z5.' },
+
+    // --- SENSORES AMBIENTALES (CENTRALES) ---
+    { id: 'temperatura', zone: 'ambiente', name: 'Sensor Ambiental', type: 'sensor', icon: <Thermometer/>, top: '50%', left: '42%', unit: '°C', description: 'Mide la temperatura y humedad general del aire.' },
+    { id: 'luz', zone: 'ambiente', name: 'Sensor de Luz', type: 'sensor', icon: <Sun/>, top: '15%', left: '42%', unit: 'lux', description: 'Mide la intensidad lumínica general.'},
+    
+    // --- ACTUADORES (CONTROLABLES) ---
+    { id: 'riego_z1', name: 'Riego Z1', type: 'actuator', icon: <Droplets/>, top: '16%', left: '50%', description: 'Controla el riego para la cama de cultivo Z1.' },
+    { id: 'riego_z3', name: 'Riego Z3', type: 'actuator', icon: <Droplets/>, top: '50%', left: '50%', description: 'Controla el riego para la cama de cultivo Z3.' },
+    { id: 'riego_z5', name: 'Riego Z5', type: 'actuator', icon: <Droplets/>, top: '84%', left: '50%', description: 'Controla el riego para la cama de cultivo Z5.' },
+    { id: 'luces_z2', name: 'Luces Z2', type: 'actuator', icon: <Lightbulb/>, top: '33%', left: '85%', description: 'Controla las luces de crecimiento para la cama Z2.'},
+    { id: 'luces_z4', name: 'Luces Z4', type: 'actuator', icon: <Lightbulb/>, top: '67%', left: '85%', description: 'Controla las luces de crecimiento para la cama Z4.'},
+    { id: 'ventilador1', name: 'Ventilador Principal', type: 'actuator', icon: <Fan/>, top: '50%', left: '95%', description: 'Controla el ventilador principal en la zona de aireación.' },
+  ];
+
+  const handleItemClick = (item) => { setSelectedItem(item); setAiAnalysis(""); };
+  const handleToggleActuator = (actuatorId) => { setActuatorStates(prev => ({ ...prev, [actuatorId]: !prev[actuatorId] })); };
+  const handleAnalyzeWithAI = async (item, value) => {
+    setIsLoadingAI(true);
+    const apiKey = "AIzaSyAp3C7EUc5HmsmBXxBQC_IhohUNyLOpfWU";
+    const prompt = `Actúa como ingeniero agrónomo. Para un cultivo de tomates, un valor de "${item.name}" de ${value} ${item.unit} ¿es bueno o malo? Describe qué significa, cuál es el rango óptimo y dame una recomendación clara y consisa, ser muy breve.`;
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        });
+        if (!response.ok) throw new Error('API request failed');
+        const result = await response.json();
+        setAiAnalysis(result.candidates[0].content.parts[0].text);
+    } catch (error) { setAiAnalysis("Error al conectar con la IA."); } finally { setIsLoadingAI(false); }
+  };
+
+  return (
+    <Card className="h-full flex flex-col md:flex-row gap-4">
+      {/* Columna del Mapa */}
+      <div className="flex-grow h-64 md:h-full relative bg-black rounded-lg">
+        <img src="/invernadero2D.png" alt="Mapa táctico del Invernadero" className="w-full h-full object-cover rounded-lg"/>
+        {mapItems.map(item => (<button key={`${item.id}-${item.zone}`} onClick={() => handleItemClick(item)} className={`absolute w-10 h-10 rounded-full flex items-center justify-center border-2 backdrop-blur-sm transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 shadow-lg hover:scale-125 ${item.type === 'sensor' ? 'bg-sky-500/50 border-sky-300' : 'bg-green-500/50 border-green-300'} ${selectedItem?.id === item.id && selectedItem?.zone === item.zone ? 'scale-125 ring-4 ring-white' : ''}`} style={{ top: item.top, left: item.left }} title={item.name}>{item.icon}</button>))}
+      </div>
+
+      {/* Columna de Detalles */}
+      <div className="w-full md:w-80 bg-gray-900/50 p-4 rounded-lg flex-shrink-0 flex flex-col">
+        <h3 className="font-bold text-lg mb-4 text-white">Panel de Control e Información</h3>
+        {!selectedItem ? (
+          <div className="text-center text-gray-500 pt-10 flex-grow flex items-center justify-center"><p>Haz clic en un sensor o equipo para interactuar.</p></div>
+        ) : (
+          <div className="animate-fade-in space-y-4 flex-grow flex flex-col">
+            <div className="flex items-center text-2xl font-bold"><span className={selectedItem.type === 'sensor' ? 'text-sky-300' : 'text-green-300'}>{selectedItem.icon}</span><span className="ml-3 text-white">{selectedItem.name}</span></div>
+            <p className="text-sm text-gray-400">{selectedItem.description}</p>
+            <hr className="border-gray-700"/>
+
+            {selectedItem.type === 'sensor' && (() => {
+                const value = liveData[selectedItem.zone]?.[selectedItem.id.split('_')[0]] || 'N/A';
+                return (
+                    <div className="space-y-4">
+                        <p className="text-5xl font-light text-white">{value}<span className="text-xl ml-2 text-gray-400">{selectedItem.unit}</span></p>
+                        <SensorVisualization item={selectedItem} value={value} />
+                        <div className="bg-gray-900/70 p-3 rounded-lg space-y-3">
+                            <button onClick={() => handleAnalyzeWithAI(selectedItem, value)} disabled={isLoadingAI} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md flex items-center justify-center disabled:bg-gray-600">
+                                {isLoadingAI ? <BrainCircuit className="animate-spin mr-2"/> : <Sparkles className="mr-2"/>} {isLoadingAI ? "IA Analizando..." : "Consultar IA"}
+                            </button>
+                            {aiAnalysis && <p className="text-xs text-gray-300 whitespace-pre-wrap">{aiAnalysis}</p>}
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {selectedItem.type === 'actuator' && (
+              <div className="bg-gray-900/70 p-3 rounded-lg"><ToggleButton icon={actuatorStates[selectedItem.id] ? <CheckCircle className="text-green-400"/> : <Power className="text-gray-500"/>} label={actuatorStates[selectedItem.id] ? "Activado" : "Desactivado"} isActive={actuatorStates[selectedItem.id]} onToggle={() => handleToggleActuator(selectedItem.id)}/></div>
+            )}
+            
+            <div className="flex-grow"></div>
+            <p className="text-xs text-gray-500 text-center">Datos del "Modo Simulado".</p>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+};
+
+// En App.tsx, añade este nuevo componente de visualización
+const SensorVisualization = ({ item, value }) => {
+  // --- Opción 1: Gráfico tipo "Tanque" o "Medidor" ---
+  if (item.id === 'nivelAguaTanque' || item.id === 'consumoEnergia' || item.id.includes('humedad')) {
+    const percentage = parseFloat(value);
+    let colorClass = 'bg-green-500';
+    if (percentage < 50) colorClass = 'bg-yellow-500';
+    if (percentage < 25) colorClass = 'bg-red-500';
+    if (item.id === 'nivelAguaTanque') colorClass = 'bg-blue-500';
+
+    return (
+      <div className="w-full bg-gray-700 rounded-lg h-8 border border-gray-600 overflow-hidden">
+        <div 
+          className={`h-full rounded-lg transition-all duration-500 ${colorClass}`}
+          style={{ width: `${percentage}%` }}
+        ></div>
+      </div>
+    );
+  }
+
+  // --- Opción 2: Gráfico Histórico ---
+  if (item.type === 'sensor') {
+    // Para la demo, generamos un historial rápido y creíble
+    const mockHistory = [
+      { name: '-30m', val: parseFloat(value) * (1 + (Math.random() - 0.5) * 0.1) },
+      { name: '-15m', val: parseFloat(value) * (1 + (Math.random() - 0.5) * 0.1) },
+      { name: '-5m', val: parseFloat(value) * (1 + (Math.random() - 0.5) * 0.1) },
+      { name: 'Ahora', val: parseFloat(value) },
+    ];
+
+    return (
+      <div className="h-24">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={mockHistory} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+            <defs>
+              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.8}/>
+                <stop offset="95%" stopColor="#38bdf8" stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            <YAxis stroke="#a0aec0" tick={{ fontSize: 10 }} domain={['dataMin - 1', 'dataMax + 1']}/>
+            <Tooltip contentStyle={{ backgroundColor: "#1a202c", border: "1px solid #4a5568" }}/>
+            <Area type="monotone" dataKey="val" stroke="#38bdf8" fill="url(#colorValue)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  }
+
+  // Si no es un sensor (es un actuador), no muestra nada.
+  return null; 
+};
+
 // --- APLICACIÓN PRINCIPAL (EL ORQUESTADOR) ---
 const LoginScreen = ({ onLogin }) => (
   <div className="h-screen w-screen flex items-center justify-center bg-gray-900">
@@ -1851,7 +2050,8 @@ const LoginScreen = ({ onLogin }) => (
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [activeModule, setActiveModule] = useState("dashboard"); // Iniciar en Capa 1 por defecto
+  const [activeModule, setActiveModule] = useState("dashboard");
+  const [isSimulationMode, setIsSimulationMode] = useState(true); // Inicia en modo simulado
 
   const modules = {
     dashboard: {
@@ -1882,16 +2082,20 @@ export default function App() {
   }
 
   return (
-    <DataProvider>
+    <DataProvider isSimulationMode={isSimulationMode}>
       <div className="min-h-screen bg-gray-900 text-white font-sans">
         <header className="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 sticky top-0 z-10">
           <div className="container mx-auto px-6 py-3 flex justify-between items-center">
+            
+            {/* --- Logo y Título (Izquierda) --- */}
             <div className="flex items-center">
               <Leaf className="h-8 w-8 text-green-500" />
               <h1 className="text-xl font-bold ml-3 hidden md:block">
                 Greenhouse Digital Twin 360
               </h1>
             </div>
+            
+            {/* --- Navegación Principal (Centro) --- */}
             <nav className="flex items-center space-x-1 bg-gray-700/50 p-1 rounded-lg">
               {Object.keys(modules).map((key) => {
                 const Icon = modules[key].icon;
@@ -1913,7 +2117,13 @@ export default function App() {
                 );
               })}
             </nav>
+            
+            {/* --- Controles de Usuario (Derecha) --- */}
             <div className="flex items-center space-x-4">
+              <ModeSwitcher 
+                isSimulation={isSimulationMode} 
+                onToggle={() => setIsSimulationMode(!isSimulationMode)} 
+              />
               <button className="text-gray-400 hover:text-white">
                 <Bell />
               </button>
@@ -1929,7 +2139,10 @@ export default function App() {
             </div>
           </div>
         </header>
+        
+        {/* --- Contenido Principal --- */}
         <main>{modules[activeModule].component}</main>
+        
       </div>
     </DataProvider>
   );
