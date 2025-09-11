@@ -71,7 +71,78 @@ import {
   Zap,
 } from "lucide-react";
 
-// --- DEFINICIÓN DE TIPOS DE DATOS ---
+
+
+// ===================================================================================
+// SECCIÓN 1: CONFIGURACIÓN GLOBAL Y DATOS ESTÁTICOS
+// Todo lo que define la aplicación pero no cambia: datos de cultivos, usuarios, etc.
+// ===================================================================================
+
+// --- BASE DE DATOS SIMULADA ---
+const CROP_DATA = {
+  tomato: {
+    name: "Tomate",
+    icon: "🍅",
+    varieties: {
+      cherry: {
+        name: "Cherry",
+        params: {
+          temperatura: { min: 21, max: 24, optimo: 22.5, critical: 32 },
+          humedadAire: { min: 65, max: 85, critical: 90 },
+          phSuelo: { min: 6.0, max: 6.8, optimo: 6.4, critical: 5.5 },
+        },
+      },
+      roma: {
+        name: "Roma (Italiano)",
+        params: {
+          temperatura: { min: 20, max: 25, optimo: 23, critical: 33 },
+          humedadAire: { min: 60, max: 80, critical: 92 },
+          phSuelo: { min: 6.2, max: 6.8, optimo: 6.5, critical: 5.8 },
+        },
+      },
+    },
+  },
+  potato: {
+    name: "Papa",
+    icon: "🥔",
+    varieties: {
+      yungay: {
+        name: "Yungay",
+        params: {
+          temperatura: { min: 15, max: 20, optimo: 17, critical: 25 },
+          humedadAire: { min: 70, max: 80, critical: 85 },
+          phSuelo: { min: 5.0, max: 6.0, optimo: 5.5, critical: 4.8 },
+        },
+      },
+    },
+  },
+  lettuce: {
+    name: "Lechuga",
+    icon: "🥬",
+    varieties: {
+      iceberg: {
+        name: "Iceberg",
+        params: {
+          temperatura: { min: 16, max: 18, optimo: 17, critical: 24 },
+          humedadAire: { min: 60, max: 70, critical: 80 },
+          phSuelo: { min: 6.0, max: 6.8, optimo: 6.4, critical: 5.5 },
+        },
+      },
+    },
+  },
+};
+const LOCATIONS = {
+  lima: { name: "Lima (La Molina)", icon: "🏙️" },
+  arequipa: { name: "Arequipa (Sachaca)", icon: "🌋" },
+  huanuco: { name: "Huánuco (Huánuco)", icon: "⛰️" },
+};
+const USERS_DB = {
+  "user1": { password: "123", name: "Ana", customCrops: {} },
+  "user2": { password: "456", name: "Carlos", customCrops: {} }
+};
+
+// --- TIPOS DE DATOS (OPCIONAL PERO RECOMENDADO) ---
+// Es una buena práctica mantener esto, aunque JavaScript funcione sin ello.
 interface SensorData {
   name: string;
   temperatura: string;
@@ -83,13 +154,108 @@ interface SensorData {
   consumoEnergia: string;
   nivelAguaTanque: string;
   timestamp: number;
-  // ... y cualquier otro campo que necesites
 }
 
-interface ComponentProps {
-  children: React.ReactNode;
-}
 
+// ===================================================================================
+// SECCIÓN 2: LÓGICA DE DATOS Y ESTADO (CONTEXTOS Y PROVIDERS)
+// El cerebro de la aplicación: cómo se maneja y distribuye la información.
+// ===================================================================================
+
+// --- PROVEEDORES DE CONTEXTO Y HOOKS ---
+
+// 1. Definimos los contextos con un valor inicial de 'null' para TypeScript.
+const ConfigContext = createContext(null);
+const DataContext = createContext(null);
+
+// 2. Definimos el hook para usar el contexto de configuración.
+const useConfig = () => useContext(ConfigContext);
+
+// 3. Definimos el hook para usar el contexto de datos.
+const useData = () => useContext(DataContext);
+
+
+const mockDataGenerator = (params: any) => {
+  if (!params) return { temperatura: '22.0', humedadAire: '70.0', humedadSuelo: '60.0', luz: 850, co2: 450, phSuelo: '6.5', consumoEnergia: '150.0', nivelAguaTanque: '85.0', timestamp: Date.now() };
+  const { temperatura: tempParams, phSuelo: phParams } = params;
+  return {
+    temperatura: (tempParams.optimo + (Math.random() - 0.5) * 5).toFixed(1),
+    humedadAire: (65 + Math.random() * 10).toFixed(1),
+    humedadSuelo: (55 + Math.random() * 15).toFixed(1),
+    luz: Math.floor(800 + Math.random() * 400),
+    co2: Math.floor(400 + Math.random() * 150),
+    phSuelo: (phParams.optimo + (Math.random() - 0.5) * 0.5).toFixed(2),
+    consumoEnergia: (150 + Math.random() * 50).toFixed(2),
+    nivelAguaTanque: (85 + Math.random() * 15).toFixed(1),
+    timestamp: Date.now(),
+  };
+};
+
+// 4. Creamos el ConfigProvider, añadiendo tipos a las props.
+const ConfigProvider = ({ children, initialConfig, customCrops, addCustomCrop }: { children: React.ReactNode, initialConfig: any, customCrops: any, addCustomCrop: any }) => {
+  const [location, setLocation] = useState(initialConfig.location);
+  const [crop, setCrop] = useState(initialConfig.crop);
+  const [variety, setVariety] = useState(initialConfig.variety);
+
+  const availableCrops = { ...CROP_DATA, ...customCrops };
+
+  // Verificación de seguridad para evitar que la app se rompa.
+  if (!availableCrops[crop] || !availableCrops[crop].varieties[variety]) {
+    const defaultCrop = Object.keys(CROP_DATA)[0];
+    const defaultVariety = Object.keys(CROP_DATA[defaultCrop].varieties)[0];
+    setCrop(defaultCrop);
+    setVariety(defaultVariety);
+    return <div>Recargando configuración...</div>;
+  }
+  
+  const value = {
+    location: LOCATIONS[location],
+    crop: availableCrops[crop],
+    variety: availableCrops[crop].varieties[variety],
+    params: availableCrops[crop].varieties[variety].params,
+    setLocation, setCrop, setVariety, availableCrops, addCustomCrop
+  };
+
+  return <ConfigContext.Provider value={value}>{children}</ConfigContext.Provider>;
+};
+
+// 5. Creamos el DataProvider, también con tipos y la lógica unificada.
+const DataProvider = ({ children, isSimulationMode }: { children: React.ReactNode, isSimulationMode: boolean }) => {
+  const config = useConfig();
+  const [liveData, setLiveData] = useState(() => mockDataGenerator(config.params));
+  const [history, setHistory] = useState<SensorData[]>([]);
+
+  useEffect(() => {
+    if (isSimulationMode) {
+        const initialHistory = Array.from({ length: 30 }).map(() => ({
+            ...mockDataGenerator(config.params),
+            name: new Date(Date.now() - (Math.random() * 30) * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        }));
+        setHistory(initialHistory);
+      
+      const interval = setInterval(() => {
+        const newData = mockDataGenerator(config.params);
+        setLiveData(newData);
+        setHistory(prev => [...prev.slice(-29), { ...newData, name: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
+      }, 3000);
+      return () => clearInterval(interval);
+    } else {
+      console.log("Modo Conectado: Lógica de conexión real no implementada.");
+      setLiveData(mockDataGenerator(config.params));
+      setHistory([]);
+    }
+  }, [isSimulationMode, config.params]);
+
+  const value = { liveData, history };
+  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+};
+
+// ===================================================================================
+// SECCIÓN 3: COMPONENTES DE UI REUTILIZABLES (PEQUEÑOS)
+// Piezas de Lego para construir la interfaz: tarjetas, botones, etc.
+// ===================================================================================
+
+// --- COMPONENTE PARA CAMBIAR ENTRE MODO SIMULADO Y CONECTADO ---
 const ModeSwitcher = ({ isSimulation, onToggle }: { isSimulation: boolean; onToggle: () => void }) => (
   <div className="flex items-center space-x-2 bg-gray-700 p-1 rounded-lg">
     <span className="text-xs font-bold text-gray-300">
@@ -110,93 +276,12 @@ const ModeSwitcher = ({ isSimulation, onToggle }: { isSimulation: boolean; onTog
   </div>
 );
 
-// --- CONTEXTO DE DATOS (PREPARADO PARA CONEXIÓN REAL) ---
-const DataContext = createContext();
-
-const mockDataGenerator = () => ({
-  temperatura: (22 + Math.random() * 8).toFixed(1),
-  humedadAire: (65 + Math.random() * 10).toFixed(1),
-  humedadSuelo: (55 + Math.random() * 15).toFixed(1),
-  luz: Math.floor(800 + Math.random() * 400),
-  co2: Math.floor(400 + Math.random() * 150),
-  phSuelo: (6.0 + Math.random() * 0.8).toFixed(2),
-  consumoEnergia: (150 + Math.random() * 50).toFixed(2), // Watts
-  nivelAguaTanque: (85 + Math.random() * 15).toFixed(1), // %
-  timestamp: new Date().getTime(),
-  // En App.tsx, reemplaza el mockDataGenerator
-  z1: { humedadSuelo: (65 + Math.random() * 5).toFixed(1), phSuelo: (6.1 + Math.random() * 0.2).toFixed(2) },
-  z2: { humedadSuelo: (68 + Math.random() * 5).toFixed(1), phSuelo: (6.3 + Math.random() * 0.2).toFixed(2) },
-  z3: { humedadSuelo: (66 + Math.random() * 5).toFixed(1), phSuelo: (6.2 + Math.random() * 0.2).toFixed(2) },
-  z4: { humedadSuelo: (70 + Math.random() * 5).toFixed(1), phSuelo: (6.4 + Math.random() * 0.2).toFixed(2) },
-  z5: { humedadSuelo: (67 + Math.random() * 5).toFixed(1), phSuelo: (6.0 + Math.random() * 0.2).toFixed(2) },
-  ambiente: { temperatura: (24 + Math.random() * 2).toFixed(1), humedadAire: (70 + Math.random() * 8).toFixed(1), luz: Math.floor(900 + Math.random() * 300), co2: Math.floor(450 + Math.random() * 100) },
-  control: { consumoEnergia: (170 + Math.random() * 30).toFixed(2), nivelAguaTanque: (90 + Math.random() * 10).toFixed(1) },
-  timestamp: new Date().getTime(),
-});
-
-const DataProvider = ({ children, isSimulationMode }: { children: React.ReactNode; isSimulationMode: boolean }) => {
-  const [liveData, setLiveData] = useState(mockDataGenerator());
-  const [history, setHistory] = useState<SensorData[]>([]);
-
-  useEffect(() => {
-    console.log(`🚀 Cambiando a modo: ${isSimulationMode ? "Simulado" : "Conectado"}`);
-
-    if (isSimulationMode) {
-      // --- MODO SIMULADO ---
-      const initialHistory = [];
-      for (let i = 0; i < 30; i++) { initialHistory.push({ ...mockDataGenerator(), name: new Date(Date.now() - (29 - i) * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }); }
-      setHistory(initialHistory);
-      
-      const interval = setInterval(() => {
-        const newData = mockDataGenerator();
-        setLiveData(newData);
-        setHistory((prev) => [...prev.slice(1), { ...newData, name: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
-      }, 3000);
-      
-      return () => clearInterval(interval);
-
-    } else {
-      // --- MODO CONECTADO ---
-      let mqttClient;
-      const connectToRealData = async () => {
-        try {
-          const response = await fetch('http://<IP_DE_TU_RASPBERRY_PI>:8000/sensores');
-          const data = await response.json();
-          setHistory(data.map(r => ({...r, name: new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})));
-          console.log('✅ Historial de datos cargado.');
-        } catch (error) { console.error("❌ Error al cargar historial:", error); }
-
-        mqttClient = mqtt.connect('wss://<URL_DE_TU_BROKER_MQTT>');
-        mqttClient.on('connect', () => {
-          console.log('✅ Conectado a MQTT.');
-          mqttClient.subscribe('invernadero/sensores/live');
-        });
-        mqttClient.on('message', (topic, message) => {
-          setLiveData(JSON.parse(message.toString()));
-        });
-      };
-
-      connectToRealData();
-      return () => { if (mqttClient) mqttClient.end(); };
-    }
-  }, [isSimulationMode]);
-
-  return (
-    <DataContext.Provider value={{ liveData, history }}>
-      {children}
-    </DataContext.Provider>
-  );
-};
-
-const useData = () => useContext(DataContext);
 
 // --- COMPONENTES DE UI REUTILIZABLES ---
-const Card = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <div
-    className={`bg-gray-800/50 border border-gray-700 rounded-xl shadow-lg p-4 backdrop-blur-sm ${className}`}
-  >
-    {children}
-  </div>
+const Card = ({ children, className = "" }) => (
+    <div className={`bg-gray-800/50 border border-gray-700 rounded-xl shadow-lg p-4 backdrop-blur-sm ${className}`}>
+        {children}
+    </div>
 );
 
 const KpiCard = ({ icon, title, value, unit, color }: { icon: React.ReactNode; title: string; value: string | number; unit: string; color: string }) => (
@@ -212,26 +297,22 @@ const KpiCard = ({ icon, title, value, unit, color }: { icon: React.ReactNode; t
   </Card>
 );
 
-const ToggleButton = ({ icon, label, isActive, onToggle }: { icon: React.ReactNode; label: string; isActive: boolean; onToggle: () => void }) => (
-  <div className="flex items-center justify-between">
-    <div className="flex items-center">
-      {icon}
-      <span className="text-white ml-2">{label}</span>
+const ToggleButton = ({ icon, label, isActive, onToggle }) => (
+    <div className="flex items-center justify-between">
+        <div className="flex items-center">
+            {icon}
+            <span className="text-white ml-2">{label}</span>
+        </div>
+        <button onClick={onToggle} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors duration-300 ${isActive ? "bg-green-500" : "bg-gray-600"}`}>
+            <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${isActive ? "translate-x-6" : "translate-x-1"}`} />
+        </button>
     </div>
-    <button
-      onClick={onToggle}
-      className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors duration-300 ${
-        isActive ? "bg-green-500" : "bg-gray-600"
-      }`}
-    >
-      <span
-        className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-300 ${
-          isActive ? "translate-x-6" : "translate-x-1"
-        }`}
-      />
-    </button>
-  </div>
 );
+
+// ===================================================================================
+// SECCIÓN 4: COMPONENTES DE MÓDULOS (GRANDES)
+// Componentes complejos que forman las distintas vistas del dashboard.
+// ===================================================================================
 
 // --- CAPA 1: EL INVERNADERO CONECTADO ---
 const HistoryChart = () => {
@@ -322,56 +403,60 @@ const CameraFeed = () => {
   );
 };
 
-// App.tsx - REEMPLAZA TU COMPONENTE BimViewer CON ESTE CÓDIGO COMPLETO
-
 const BimViewer = () => {
-  // useRef nos da un "ancla" para conectar nuestra lógica de React con un elemento DIV específico en el DOM.
+  // El ancla para el div sigue siendo la misma.
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // useEffect se ejecuta después de que el componente se renderiza. Es el lugar ideal para
-  // inicializar librerías de terceros que manipulan el DOM, como web-ifc-viewer.
   useEffect(() => {
-    // Si por alguna razón el div no se ha renderizado, detenemos la ejecución.
     if (!containerRef.current) return;
 
     const container = containerRef.current;
 
-    // 1. INICIALIZACIÓN DE LA ESCENA 3D
-    // Creamos una nueva instancia del visor, pasándole el contenedor HTML y un color de fondo
-    // que coincida con el tema oscuro de tu aplicación.
     const viewer = new IfcViewerAPI({
       container,
-      backgroundColor: new Color(0x1a202c), // Coincide con bg-gray-900
+      backgroundColor: new Color(0x1a202c),
     });
 
-    // 2. CONFIGURACIÓN DEL ENTORNO
-    // Añadimos una rejilla y ejes para dar un mejor sentido de escala y orientación.
-    viewer.grid.setGrid(50, 50);
+    viewer.grid.setGrid(100000, 100000);
     viewer.axes.setAxes();
 
-    // 3. CARGA DEL MODELO IFC
-    // Esta función es asíncrona porque la carga de un modelo puede tardar.
     async function loadIfcModel() {
-      // Indicamos a la librería dónde encontrar sus archivos de apoyo (WebAssembly).
-      await viewer.IFC.setWasmPath('/');
+      // ✅ 1. MANEJO DE ERRORES
+      // Envolvemos todo en un try...catch. Si algo falla, lo veremos en la consola.
+      try {
+        await viewer.IFC.setWasmPath('/');
+        const model = await viewer.IFC.loadIfcUrl('/mini_invernadero_BIM_IFC.ifc');
 
-      // ¡La línea clave! Cargamos el modelo desde la carpeta `public`.
-      const model = await viewer.IFC.loadIfcUrl('/algo.ifc');
+        // Activamos el post-procesamiento para mejores efectos visuales.
+        viewer.context.renderer.postProduction.active = true;
+        
+        // La generación de sombras es más fiable si creamos un "subconjunto" del modelo.
+        await viewer.shadowDropper.renderShadow(model.modelID);
 
-      // Para un mejor acabado visual, activamos el post-procesamiento y renderizamos una sombra.
-      viewer.context.renderer.postProduction.active = true;
-      await viewer.shadowDropper.renderShadow(model.modelID);
+        // ✅ 2. AJUSTE DE CÁMARA (¡EL PASO MÁS IMPORTANTE!)
+        // Esta línea centra la cámara y hace zoom para que el modelo se vea perfectamente.
+        await viewer.context.fitToFrame();
+
+      } catch (error) {
+        console.error("❌ ¡Error al cargar el modelo IFC!", error);
+      }
     }
 
     loadIfcModel();
+    
+    // ✅ 3. MANEJO DE REDIMENSIONAMIENTO DE VENTANA (BONUS)
+    // Esto asegura que el visor 3D se ajuste si el tamaño de la ventana cambia.
+    const handleResize = () => {
+        viewer.context.updateAspect();
+    }
+    window.addEventListener("resize", handleResize);
 
-    // 4. LIMPIEZA DE MEMORIA
-    // Esta función se ejecuta cuando el componente se va a "desmontar" (por ejemplo, al cambiar de pestaña).
-    // Es VITAL para liberar los recursos de la tarjeta gráfica (WebGL) y evitar fugas de memoria.
+    // Limpieza de memoria (tu código ya lo hacía bien).
     return () => {
       viewer.dispose();
+      window.removeEventListener("resize", handleResize);
     };
-  }, []); // El array vacío `[]` asegura que este código se ejecute SOLO UNA VEZ.
+  }, []); 
 
   return (
     <Card className="h-full flex flex-col">
@@ -380,8 +465,7 @@ const BimViewer = () => {
         Gemelo Digital BIM
       </h3>
       
-      {/* Este div es el contenedor que hemos "anclado" con `containerRef`.
-          Toma todo el espacio disponible gracias a flex-grow. */}
+      {/* El div contenedor no cambia. */}
       <div ref={containerRef} className="flex-grow rounded-lg w-full h-full" />
       
       <p className="text-xs text-gray-500 mt-2 text-center">
@@ -390,6 +474,7 @@ const BimViewer = () => {
     </Card>
   );
 };
+
 const ControlPanel = () => {
   const [controls, setControls] = useState({
     ventilacion: false,
@@ -2041,46 +2126,205 @@ const SensorVisualization = ({ item, value }) => {
   return null; 
 };
 
-// --- APLICACIÓN PRINCIPAL (EL ORQUESTADOR) ---
-const LoginScreen = ({ onLogin }) => (
-  <div className="h-screen w-screen flex items-center justify-center bg-gray-900">
-    <div className="text-center animate-fade-in">
-      <div className="flex justify-center items-center mb-6">
-        <Leaf className="h-16 w-16 text-green-500" />
-        <h1 className="text-5xl font-bold text-white ml-4">GDT-360</h1>
-      </div>
-      <p className="text-gray-400 mb-8">
-        El sistema operativo para la próxima revolución agrícola.
-      </p>
-      <button
-        onClick={onLogin}
-        className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg transition duration-300 flex items-center mx-auto"
-      >
-        <LogIn className="mr-2" /> Ingresar al Ecosistema
-      </button>
+// ===================================================================================
+// SECCIÓN 5: COMPONENTES DE FLUJO DE APLICACIÓN
+// Pantallas que guían al usuario, como Login y Configuración.
+// ===================================================================================
+
+// --- PANTALLAS DE FLUJO DE INICIO ---
+
+const LoginScreen = ({ onLogin }) => {
+  const [username, setUsername] = useState("user1");
+  const [password, setPassword] = useState("123");
+  const [error, setError] = useState("");
+
+  const handleLogin = (e) => {
+    e.preventDefault(); // Previene que la página se recargue al enviar el formulario
+    const user = USERS_DB[username];
+    if (user && user.password === password) {
+      setError("");
+      onLogin(user);
+    } else {
+      setError("Usuario o contraseña incorrectos.");
+    }
+  };
+
+  return (
+    <div className="h-screen w-screen flex items-center justify-center bg-gray-900 p-4">
+      <Card className="w-full max-w-sm animate-fade-in">
+        <form onSubmit={handleLogin}>
+          <div className="text-center mb-8">
+            <div className="flex justify-center items-center mb-2">
+              <Leaf className="h-12 w-12 text-green-500" />
+              <h1 className="text-4xl font-bold text-white ml-3">GDT-360</h1>
+            </div>
+            <p className="text-gray-400">Inicia sesión para monitorear tu ecosistema</p>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-300 block mb-1">Usuario (prueba con 'user1')</label>
+              <input type="text" value={username} onChange={e => setUsername(e.target.value)} className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:ring-2 focus:ring-green-500 focus:outline-none" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-300 block mb-1">Contraseña (prueba con '123')</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:ring-2 focus:ring-green-500 focus:outline-none" />
+            </div>
+          </div>
+          {error && <p className="mt-4 text-center text-red-400 text-sm">{error}</p>}
+          <button type="submit" className="w-full mt-6 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105 flex items-center justify-center">
+            <LogIn className="inline-block mr-2 h-5 w-5" />
+            Ingresar
+          </button>
+        </form>
+      </Card>
     </div>
-  </div>
-);
+  );
+};
 
-export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+const SetupScreen = ({ user, onConfigComplete, availableCrops, addCustomCrop }) => {
+  const [selectedLocation, setSelectedLocation] = useState(Object.keys(LOCATIONS)[0]);
+  const [selectedCrop, setSelectedCrop] = useState(Object.keys(availableCrops)[0]);
+  const [selectedVariety, setSelectedVariety] = useState(Object.keys(availableCrops[Object.keys(availableCrops)[0]].varieties)[0]);
+  const [isSimulation, setIsSimulation] = useState(true); // Nuevo estado para el modo de datos
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (availableCrops[selectedCrop]) {
+      const newVarieties = Object.keys(availableCrops[selectedCrop].varieties);
+      setSelectedVariety(newVarieties[0]);
+    }
+  }, [selectedCrop, availableCrops]);
+
+  const handleConfirm = () => {
+    onConfigComplete({
+      location: selectedLocation,
+      crop: selectedCrop,
+      variety: selectedVariety,
+      isSimulation: isSimulation, // Pasamos el modo seleccionado
+    });
+  };
+
+  return (
+    <>
+      <div className="h-screen w-screen flex items-center justify-center bg-gray-900 p-4">
+        <Card className="w-full max-w-lg animate-fade-in">
+          <h2 className="text-3xl font-bold text-white text-center">¡Bienvenido, {user.name}!</h2>
+          <p className="text-gray-400 text-center mb-8">Configura tu invernadero para esta sesión</p>
+          
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label className="text-sm font-medium text-gray-300 block mb-2">1. Selecciona la Ubicación</label>
+                    <select onChange={(e) => setSelectedLocation(e.target.value)} className="w-full p-3 bg-gray-700 border border-gray-600 rounded-md text-white">{Object.entries(LOCATIONS).map(([key, { name, icon }]) => (<option key={key} value={key}>{icon} {name}</option>))}</select>
+                </div>
+                <div>
+                    <label className="text-sm font-medium text-gray-300 block mb-2">2. Elige el Tipo de Datos</label>
+                    <div className="bg-gray-700 rounded-md p-2 flex items-center justify-around h-full">
+                        <button onClick={() => setIsSimulation(true)} className={`px-4 py-1 rounded-md text-sm transition ${isSimulation ? 'bg-yellow-500 text-black font-bold' : 'text-gray-300'}`}>Datos Simulados</button>
+                        <button onClick={() => setIsSimulation(false)} className={`px-4 py-1 rounded-md text-sm transition ${!isSimulation ? 'bg-green-500 text-white font-bold' : 'text-gray-300'}`}>Datos Conectados</button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label className="text-sm font-medium text-gray-300 block mb-2">3. Configura tu Cultivo</label>
+                <div className="grid grid-cols-2 gap-4">
+                    <select onChange={(e) => setSelectedCrop(e.target.value)} value={selectedCrop} className="w-full p-3 bg-gray-700 border border-gray-600 rounded-md text-white">{Object.entries(availableCrops).map(([key, { name, icon }]) => (<option key={key} value={key}>{icon} {name}</option>))}</select>
+                    {availableCrops[selectedCrop] && <select onChange={(e) => setSelectedVariety(e.target.value)} value={selectedVariety} className="w-full p-3 bg-gray-700 border border-gray-600 rounded-md text-white">{Object.keys(availableCrops[selectedCrop].varieties).map((varietyKey) => (<option key={varietyKey} value={varietyKey}>{availableCrops[selectedCrop].varieties[varietyKey].name}</option>))}</select>}
+                </div>
+                 <button onClick={() => setIsModalOpen(true)} className="text-sm text-green-400 hover:text-green-300 mt-2 w-full text-left">+ Añadir nuevo tipo de cultivo</button>
+            </div>
+          </div>
+          
+          <button onClick={handleConfirm} className="w-full mt-8 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg transition-transform transform hover:scale-105 flex items-center justify-center">
+            <Rocket className="inline mr-2" /> Iniciar Monitoreo
+          </button>
+        </Card>
+      </div>
+
+      <CustomCropModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)}
+        onSave={(newCrop) => {
+            const newId = newCrop.name.toLowerCase().replace(/\s/g, '');
+            addCustomCrop(newId, newCrop);
+            setSelectedCrop(newId); // Selecciona automáticamente el nuevo cultivo
+        }}
+      />
+    </>
+  );
+};
+
+// Componente Modal para crear cultivos personalizados (MEJOR UX)
+const CustomCropModal = ({ isOpen, onClose, onSave }) => {
+    const [form, setForm] = useState({ name: '', icon: '🌱', tempMin: 20, tempMax: 25, tempCrit: 30, phMin: 6.0, phMax: 6.8, phCrit: 5.5 });
+    
+    if (!isOpen) return null;
+
+    const handleSave = () => {
+        if (!form.name.trim()) {
+            alert("El nombre del cultivo es obligatorio.");
+            return;
+        }
+        onSave(form);
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+            <Card className="w-full max-w-lg">
+                <h3 className="text-2xl font-bold text-green-400 mb-4">Añadir Cultivo Personalizado</h3>
+                <div className="space-y-4">
+                     <div className="grid grid-cols-2 gap-4">
+                        <div><label className="text-sm">Nombre del Cultivo</label><input type="text" placeholder="Ej: Fresa" onChange={e => setForm({...form, name: e.target.value})} className="w-full p-2 mt-1 bg-gray-700 rounded-md text-white"/></div>
+                        <div><label className="text-sm">Ícono</label><input type="text" placeholder="Ej: 🍓" value={form.icon} onChange={e => setForm({...form, icon: e.target.value})} className="w-full p-2 mt-1 bg-gray-700 rounded-md text-white"/></div>
+                     </div>
+                     <div>
+                        <p className="text-sm text-gray-400">Parámetros de Temperatura (°C)</p>
+                        <div className="grid grid-cols-3 gap-2 mt-1">
+                            <input type="number" placeholder="Mín" value={form.tempMin} onChange={e => setForm({...form, tempMin: parseFloat(e.target.value) || 0})} className="w-full p-2 bg-gray-700 rounded-md text-white"/>
+                            <input type="number" placeholder="Máx" value={form.tempMax} onChange={e => setForm({...form, tempMax: parseFloat(e.target.value) || 0})} className="w-full p-2 bg-gray-700 rounded-md text-white"/>
+                            <input type="number" placeholder="Crítico" value={form.tempCrit} onChange={e => setForm({...form, tempCrit: parseFloat(e.target.value) || 0})} className="w-full p-2 bg-gray-700 rounded-md text-white"/>
+                        </div>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-400">Parámetros de pH del Suelo</p>
+                        <div className="grid grid-cols-3 gap-2 mt-1">
+                            <input type="number" step="0.1" placeholder="Mín" value={form.phMin} onChange={e => setForm({...form, phMin: parseFloat(e.target.value) || 0})} className="w-full p-2 bg-gray-700 rounded-md text-white"/>
+                            <input type="number" step="0.1" placeholder="Máx" value={form.phMax} onChange={e => setForm({...form, phMax: parseFloat(e.target.value) || 0})} className="w-full p-2 bg-gray-800 rounded-md text-white"/>
+                            <input type="number" step="0.1" placeholder="Crítico" value={form.phCrit} onChange={e => setForm({...form, phCrit: parseFloat(e.target.value) || 0})} className="w-full p-2 bg-gray-700 rounded-md text-white"/>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex justify-end gap-4 mt-6">
+                    <button onClick={onClose} className="py-2 px-4 bg-gray-600 hover:bg-gray-700 rounded-lg transition">Cancelar</button>
+                    <button onClick={handleSave} className="py-2 px-6 bg-green-600 hover:bg-green-700 rounded-lg transition">Guardar</button>
+                </div>
+            </Card>
+        </div>
+    );
+};
+
+// --- VISTA PRINCIPAL DE LA APLICACIÓN (DESPUÉS DEL LOGIN Y SETUP) ---
+const MainAppView = ({ user, config, setConfig, setUser }) => {
+  // Estado para el módulo activo y el modo de simulación
   const [activeModule, setActiveModule] = useState("dashboard");
-  const [isSimulationMode, setIsSimulationMode] = useState(true); // Inicia en modo simulado
+  const [isSimulationMode, setIsSimulationMode] = useState(true);
 
+  // Definición de los módulos (como ya lo tenías)
   const modules = {
     dashboard: {
-      label: "Invernadero Conectado",
+      label: "Invernadero",
       component: <DashboardModule />,
       icon: Building,
     },
-    // --- CORRECCIÓN: Se usa el componente renombrado y más avanzado ---
     simulator: {
-      label: "Oráculo Estratégico",
+      label: "Oráculo",
       component: <SimulatorModuleTycoon />,
       icon: Rocket,
     },
     cognitive: {
-      label: "Operador Cognitivo",
+      label: "Cognitivo",
       component: <CognitiveModule />,
       icon: BrainCircuit,
     },
@@ -2091,73 +2335,104 @@ export default function App() {
     },
   };
 
-  if (!isLoggedIn) {
-    return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
-  }
-
   return (
     <DataProvider isSimulationMode={isSimulationMode}>
       <div className="min-h-screen bg-gray-900 text-white font-sans">
         <header className="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 sticky top-0 z-10">
           <div className="container mx-auto px-6 py-3 flex justify-between items-center">
             
-            {/* --- Logo y Título (Izquierda) --- */}
             <div className="flex items-center">
               <Leaf className="h-8 w-8 text-green-500" />
-              <h1 className="text-xl font-bold ml-3 hidden md:block">
-                Greenhouse Digital Twin 360
-              </h1>
+              <h1 className="text-xl font-bold ml-3 hidden md:block">GDT-360</h1>
             </div>
             
-            {/* --- Navegación Principal (Centro) --- */}
             <nav className="flex items-center space-x-1 bg-gray-700/50 p-1 rounded-lg">
               {Object.keys(modules).map((key) => {
                 const Icon = modules[key].icon;
                 return (
-                  <button
-                    key={key}
-                    onClick={() => setActiveModule(key)}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center ${
-                      activeModule === key
-                        ? "bg-blue-600 text-white"
-                        : "text-gray-300 hover:bg-gray-600"
-                    }`}
-                  >
+                  <button key={key} onClick={() => setActiveModule(key)} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center ${activeModule === key ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-gray-600"}`}>
                     <Icon className="h-4 w-4 mr-2" />
-                    <span className="hidden sm:inline">
-                      {modules[key].label}
-                    </span>
+                    <span className="hidden sm:inline">{modules[key].label}</span>
                   </button>
                 );
               })}
             </nav>
             
-            {/* --- Controles de Usuario (Derecha) --- */}
             <div className="flex items-center space-x-4">
               <ModeSwitcher 
                 isSimulation={isSimulationMode} 
                 onToggle={() => setIsSimulationMode(!isSimulationMode)} 
               />
-              <button className="text-gray-400 hover:text-white">
-                <Bell />
-              </button>
-              <button className="text-gray-400 hover:text-white">
-                <Settings />
-              </button>
-              <button
-                onClick={() => setIsLoggedIn(false)}
-                className="text-gray-400 hover:text-white"
-              >
+              <button onClick={() => setConfig(null)} className="text-sm bg-blue-600 px-3 py-1 rounded-md hover:bg-blue-700 transition-colors">Cambiar Cultivo</button>
+              <button onClick={() => { setUser(null); setConfig(null); }} className="text-gray-400 hover:text-white">
                 <LogOut className="h-5 w-5" />
               </button>
             </div>
+
           </div>
         </header>
         
-        {/* --- Contenido Principal --- */}
         <main>{modules[activeModule].component}</main>
         
       </div>
     </DataProvider>
+  );
+};
+
+// --- APLICACIÓN PRINCIPAL (EL ORQUESTADOR) ---
+export default function App() {
+  // Estado centralizado para manejar el flujo de la aplicación
+  const [user, setUser] = useState(null);
+  const [config, setConfig] = useState(null);
+  const [customCrops, setCustomCrops] = useState({});
+
+  // Función para añadir un cultivo personalizado a la sesión actual
+  const addCustomCrop = (id, data) => {
+    const newCrop = {
+      [id]: {
+        name: data.name,
+        icon: data.icon,
+        varieties: {
+          default: {
+            name: "Personalizada",
+            params: {
+              temperatura: { min: data.tempMin, max: data.tempMax, optimo: (data.tempMin + data.tempMax) / 2, critical: data.tempCrit },
+              phSuelo: { min: data.phMin, max: data.phMax, optimo: (data.phMin + data.phMax) / 2, critical: data.phCrit },
+            }
+          }
+        }
+      }
+    };
+    setCustomCrops(prev => ({ ...prev, ...newCrop }));
+    alert(`¡Cultivo "${data.name}" guardado para esta sesión!`);
+  };
+
+  // --- Lógica de Renderizado Condicional ---
+
+  // 1. Si NO hay usuario, muestra la pantalla de Login.
+  if (!user) {
+    return <LoginScreen onLogin={(loggedInUser) => setUser(loggedInUser)} />;
+  }
+
+  // 2. Si HAY usuario pero NO ha configurado la sesión, muestra la pantalla de Setup.
+  if (user && !config) {
+    return <SetupScreen 
+              user={user} 
+              onConfigComplete={(selection) => setConfig(selection)} 
+              availableCrops={{...CROP_DATA, ...customCrops}} 
+              addCustomCrop={addCustomCrop} 
+           />;
+  }
+
+  // 3. Si todo está listo, muestra la aplicación principal, envuelta en sus Providers.
+  return (
+    <ConfigProvider initialConfig={config} customCrops={customCrops} addCustomCrop={addCustomCrop}>
+      <MainAppView 
+        user={user}
+        config={config}
+        setConfig={setConfig}
+        setUser={setUser}
+      />
+    </ConfigProvider>
   );
 }

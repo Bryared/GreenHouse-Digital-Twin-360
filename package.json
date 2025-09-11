@@ -1,6 +1,11 @@
 {
   "dependencies": {
+    "mqtt": "^5.14.1",
     "three": "^0.135.0",
     "web-ifc-viewer": "^1.0.218"
+  },
+  "devDependencies": {
+    "@types/mqtt": "^2.5.0",
+    "@types/three": "^0.180.0"
   }
 }
