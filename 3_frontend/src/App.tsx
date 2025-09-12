@@ -630,7 +630,7 @@ const BimViewer = () => {
       backgroundColor: new Color(0x1a202c),
     });
 
-    viewer.grid.setGrid(10000, 10000);
+    viewer.grid.setGrid(10, 10);
     viewer.axes.setAxes();
 
     async function loadIfcModel() {
