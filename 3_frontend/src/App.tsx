@@ -68,6 +68,7 @@ import {
   Trees,
   Recycle,
   Zap,
+  UploadCloud,
 } from "lucide-react";
 
 
@@ -1599,7 +1600,7 @@ const AgroBotChat = () => {
     setInput("");
     setIsLoading(true);
 
-    const prompt = `Eres AgroBot, un asistente de IA experto en agronomía para invernaderos de alta tecnología en Perú. Responde a la siguiente pregunta del usuario de forma concisa y amigable:\n\nUsuario: "${input}"`;
+    const prompt = `Eres GDT360, un asistente de IA experto en agronomía para invernaderos de alta tecnología en Perú. Responde a la siguiente pregunta del usuario de forma concisa y amigable:\n\nUsuario: "${input}"`;
     try {
       const apiKey = "AIzaSyAp3C7EUc5HmsmBXxBQC_IhohUNyLOpfWU"; // Recuerda poner tu clave de API de Google aquí
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
@@ -1765,12 +1766,162 @@ const AdvancedAnalysis = () => {
   );
 };
 
+// ===================================================================================
+// ▼▼▼ PEGA TODO ESTE BLOQUE DE CÓDIGO NUEVO AQUÍ ▼▼▼
+// ===================================================================================
+
+// Define el tipo para la respuesta de la API de Gemini (simplificado)
+interface GeminiResponse {
+  candidates: Array<{
+    content: {
+      parts: Array<{ text: string }>;
+    };
+  }>;
+}
+
+const DigitalPhenotyping = () => {
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+
+  // 1. Maneja la selección del archivo y lo convierte a base64
+  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = () => {
+        setImageBase64(reader.result as string);
+        setAnalysis(""); // Limpia el análisis anterior
+        setError("");
+      };
+    }
+  };
+
+  // 2. Envía la imagen y el prompt a la API de Gemini
+  const handleAnalysis = async () => {
+    if (!imageBase64 || !imageFile) {
+      setError("Por favor, selecciona una imagen primero.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+    setAnalysis("");
+
+    const base64Data = imageBase64.split(',')[1];
+    
+    const prompt = `
+      Actúa como un agrónomo y fitopatólogo experto. Realiza un análisis de fenotipado digital de la siguiente imagen de una hoja de cultivo.
+      Proporciona un reporte estructurado y conciso, breve pero valioso con los siguientes puntos:
+      - **Diagnóstico Principal:** (Ej: Deficiencia de nitrógeno, Estrés hídrico, posible infección por mildiú polvoroso)
+      - **Nivel de Confianza:** (Ej: Alto, Medio, Bajo)
+      - **Observaciones Clave:** (Describe las anomalías visuales como clorosis, necrosis, manchas, etc.)
+      - **Acciones Sugeridas:** (Enumera 2-3 pasos prácticos y urgentes)
+    `;
+
+    // ❗️ RECUERDA: La clave de API debe estar en un backend, esto es solo para la prueba rápida
+    const apiKey = "AIzaSyAZbAhadglNH4Lba1rbWFFxoWCC7Ci2QwM";
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+
+    const body = {
+      contents: [{
+        parts: [
+          { text: prompt },
+          {
+            inline_data: {
+              mime_type: imageFile.type,
+              data: base64Data,
+            },
+          },
+        ],
+      }],
+    };
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json();
+        throw new Error(`Error de la API: ${response.statusText} - ${errorBody.error.message}`);
+      }
+
+      const result: GeminiResponse = await response.json();
+      const analysisText = result.candidates[0].content.parts[0].text;
+      setAnalysis(analysisText);
+
+    } catch (err: any) {
+      setError(`Error al contactar la IA: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-6 animate-fade-in">
+      <Card>
+        <h3 className="text-2xl font-bold text-white mb-4">🔬 Análisis de Fenotipado Digital (IA)</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          {/* Columna de Carga y Previsualización */}
+          <div className="space-y-4">
+            <p className="text-gray-400">Sube una imagen de una hoja o planta para que la IA la analice.</p>
+            <label htmlFor="file-upload" className="w-full cursor-pointer bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-md transition duration-300 flex items-center justify-center">
+              <UploadCloud className="mr-2" />
+              Seleccionar Imagen
+            </label>
+            <input id="file-upload" type="file" accept="image/png, image/jpeg" className="hidden" onChange={handleImageChange} />
+            
+            {imageBase64 && (
+              <div className="mt-4 border-2 border-dashed border-gray-600 rounded-lg p-2">
+                <p className="text-sm text-center text-gray-400 mb-2">Previsualización</p>
+                <img src={imageBase64} alt="Previsualización del cultivo" className="w-full h-auto max-h-64 object-contain rounded-md" />
+              </div>
+            )}
+          </div>
+
+          {/* Columna de Análisis */}
+          <div className="space-y-4">
+            <button onClick={handleAnalysis} disabled={isLoading || !imageBase64} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 flex items-center justify-center disabled:bg-gray-600 disabled:cursor-not-allowed">
+              {isLoading ? <BrainCircuit className="animate-spin mr-2" /> : <Sparkles className="mr-2" />}
+              {isLoading ? "Analizando Imagen..." : "Analizar con IA"}
+            </button>
+            
+            {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+
+            {(isLoading && !analysis) && (
+                <div className="text-center text-gray-400 p-4">La IA está procesando la imagen...</div>
+            )}
+
+            {analysis && (
+              <Card className="mt-4 bg-gray-900/50 animate-fade-in">
+                <h4 className="font-bold text-purple-400">Reporte de la IA:</h4>
+                <pre className="whitespace-pre-wrap font-sans text-gray-300 mt-2 text-sm">{analysis}</pre>
+              </Card>
+            )}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+// ===================================================================================
+// ▲▲▲ FIN DEL BLOQUE DE CÓDIGO NUEVO ▲▲▲
+// ===================================================================================
+
 const CognitiveModule = () => {
   const [activeTab, setActiveTab] = useState("diagnosis");
   // ✅ CORRECCIÓN: Tipado con firma de índice
   const tabs: Record<string, string> = {
     diagnosis: "Diagnóstico Multimodal",
     chat: "Chat Agronómico",
+    phenotyping: "Fenotipado Digital",
     analysis: "Análisis Avanzado",
   };
   return (
@@ -1792,6 +1943,7 @@ const CognitiveModule = () => {
       </div>
       {activeTab === "diagnosis" && <MultimodalDiagnosis />}
       {activeTab === "chat" && <AgroBotChat />}
+      {activeTab === "phenotyping" && <DigitalPhenotyping />}
       {activeTab === "analysis" && <AdvancedAnalysis />}
     </div>
   );
