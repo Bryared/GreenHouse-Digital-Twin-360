@@ -789,6 +789,44 @@ const DashboardModule = () => {
 
 // --- CAPA 2: ORÁCULO ESTRATÉGICO (MÓDULO PERFECCIONADO) ---
 
+// --- COMPONENTE CONTENEDOR PARA EL ORÁCULO CON DOS PESTAÑAS ---
+const OracleModule = () => {
+  // Estado para controlar qué pestaña está activa: 'tycoon' o 'simple'
+  const [activeSimulator, setActiveSimulator] = useState<'tycoon' | 'simple'>('tycoon');
+
+  return (
+    <div className="p-6 animate-fade-in space-y-6">
+      {/* Pestañas para seleccionar el simulador */}
+      <div className="flex space-x-2 border-b border-gray-700">
+        <button
+          onClick={() => setActiveSimulator('tycoon')}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            activeSimulator === 'tycoon'
+              ? "border-b-2 border-green-500 text-white"
+              : "text-gray-400 hover:text-white"
+          }`}
+        >
+          Simulador Tycoon
+        </button>
+        <button
+          onClick={() => setActiveSimulator('simple')}
+          className={`px-4 py-2 text-sm font-medium transition-colors ${
+            activeSimulator === 'simple'
+              ? "border-b-2 border-green-500 text-white"
+              : "text-gray-400 hover:text-white"
+          }`}
+        >
+          Simulador Simple
+        </button>
+      </div>
+
+      {/* Renderizado condicional del componente activo */}
+      {activeSimulator === 'tycoon' && <SimulatorModuleTycoon />}
+      {activeSimulator === 'simple' && <SimulatorModuleSimple />}
+    </div>
+  );
+};
+
 // --- CORRECCIÓN: Se renombra el primer PlantVisualizer para evitar conflictos ---
 // ✅ CORRECCIÓN: Tipado de props
 const PlantVisualizerSimple = ({ day, totalDays }: { day: number; totalDays: number }) => {
@@ -831,7 +869,7 @@ const PlantVisualizerSimple = ({ day, totalDays }: { day: number; totalDays: num
   );
 };
 
-// ✅ CORRECCIÓN: Definición de interfaces para el módulo
+// Definición de interfaces para el módulo
 interface SimulatorResult {
   cultivo: string;
   ubicacion: string;
@@ -888,7 +926,7 @@ const SimulatorModuleSimple = () => {
     setCurrentDay(0);
     setIsPlaying(false);
 
-    const form = e.target as HTMLFormElement; // ✅ CORRECCIÓN: Se castea 'e.target'
+    const form = e.target as HTMLFormElement; 
     const cultivo = form.cultivo.value;
     const ubicacion = form.ubicacion.value;
     const escenario = form.escenario.value;
@@ -913,7 +951,7 @@ const SimulatorModuleSimple = () => {
 
       const rentabilidadNeta = rendimiento * diasCosecha * precio - costo;
 
-      const newSimResult: SimulatorResult = { // ✅ CORRECCIÓN: Se tipa el objeto literal
+      const newSimResult: SimulatorResult = { 
         cultivo,
         ubicacion,
         escenario,
@@ -1139,8 +1177,6 @@ const SimulatorModuleSimple = () => {
   );
 };
 
-// --- CORRECCIÓN: Se renombra el segundo PlantVisualizer para evitar conflictos ---
-// ✅ CORRECCIÓN: Tipado de props
 const PlantVisualizerTycoon = ({ growth, hasPest, isSelected }: { growth: number; hasPest: boolean; isSelected: boolean }) => {
   let PlantIcon = Sprout;
   let color = "text-yellow-500";
@@ -2484,7 +2520,7 @@ const MainAppView = ({config, setConfig, setUser }: MainAppViewProps) => {
     },
     simulator: {
       label: "Oráculo",
-      component: <SimulatorModuleTycoon />,
+    component: <OracleModule />,
       icon: Rocket,
     },
     cognitive: {
