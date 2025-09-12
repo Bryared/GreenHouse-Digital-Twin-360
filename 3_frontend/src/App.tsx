@@ -284,29 +284,70 @@ const DataProvider = ({ children, isSimulationMode }: { children: React.ReactNod
   // ✅ CORRECCIÓN: Se tipa el estado 'liveData' con la interfaz SensorData
   const [liveData, setLiveData] = useState<SensorData>(() => mockDataGenerator(config?.params));
   const [history, setHistory] = useState<SensorData[]>([]);
+// Dentro de tu componente DataProvider
 
-  useEffect(() => {
-    // ✅ CORRECCIÓN: Se verifica que config exista antes de usarlo
-    if (!config) return;
-    if (isSimulationMode) {
-        const initialHistory = Array.from({ length: 30 }).map(() => ({
-            ...mockDataGenerator(config.params),
-            name: new Date(Date.now() - (Math.random() * 30) * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        }));
-        setHistory(initialHistory);
-      
-      const interval = setInterval(() => {
-        const newData = mockDataGenerator(config.params) as SensorData; // ✅ CORRECCIÓN: Se castea a SensorData
-        setLiveData(newData);
-        setHistory(prev => [...prev.slice(-29), { ...newData, name: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
-      }, 3000);
-      return () => clearInterval(interval);
-    } else {
-      console.log("Modo Conectado: Lógica de conexión real no implementada.");
-      setLiveData(mockDataGenerator(config.params) as SensorData); // ✅ CORRECCIÓN: Se castea a SensorData
-      setHistory([]);
-    }
-  }, [isSimulationMode, config.params, config]); // ✅ CORRECCIÓN: Se agrega 'config' a las dependencias
+    useEffect(() => {
+    if (!config) return;
+
+    if (isSimulationMode) {
+        // ... tu lógica de simulación actual (esto no cambia)
+        // ...
+    } else {
+        // ▼▼▼ AQUÍ VA LA LÓGICA DEL MODO CONECTADO ▼▼▼
+        console.log("⚡️ Modo Conectado Activado. Iniciando sondeo de datos reales.");
+
+        const fetchRealData = async () => {
+        try {
+            // Debes confirmar esta URL en la documentación de innovaabc
+            const API_URL = "https://URL_DE_TU_API/data/all"; // Usamos un endpoint que traiga todo
+            const TOKEN = "token_pP0hA2qWlICSEWj8"; // Tu Channel Token
+
+            const response = await fetch(API_URL, {
+            headers: {
+                'Authorization': `Bearer ${TOKEN}` // La autenticación suele ser así
+            }
+            });
+
+            if (!response.ok) {
+            throw new Error("La respuesta de la red no fue exitosa");
+            }
+
+            const realData = await response.json();
+            
+            // 💡 Paso Clave: Mapea los datos de la API a tu interfaz SensorData
+            const formattedData: SensorData = {
+            temperatura: realData.DHT22_Temperatura?.value || 0,
+            humedadAire: realData.DHT22_Humedad?.value || 0,
+            humedadSuelo: realData.Capacitivo_1?.value || 0,
+            nivelAguaTanque: realData.HC_SR04_1?.value || 0,
+            luz: realData.KY018?.value || 0,
+            co2: realData.MQ135?.value || 0,
+            // Rellena los demás campos que necesites...
+            phSuelo: "6.8", // Valor por defecto si no tienes sensor de pH
+            consumoEnergia: "120.5", // Valor por defecto
+            timestamp: Date.now(),
+            name: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            };
+
+            setLiveData(formattedData);
+            // Opcional: Añadir al historial si lo necesitas
+            setHistory(prev => [...prev.slice(-29), formattedData]);
+
+        } catch (error) {
+            console.error("❌ Error al obtener datos reales:", error);
+        }
+        };
+
+        // Llama una vez al inicio
+        fetchRealData(); 
+        
+        // Y luego, crea un intervalo para sondear cada 5 segundos (5000 ms)
+        const interval = setInterval(fetchRealData, 5000);
+
+        // Limpia el intervalo cuando el componente se desmonte o cambien las dependencias
+        return () => clearInterval(interval);
+    }
+    }, [isSimulationMode, config]); // El array de dependencias ya es correcto
 
   const value: DataContextValue = { liveData, history }; // ✅ CORRECCIÓN: Se asegura que el objeto coincida con la interfaz
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
@@ -1582,11 +1623,13 @@ const MultimodalDiagnosis = () => {
 
 const AgroBotChat = () => {
   const [messages, setMessages] = useState<{ sender: 'bot' | 'user', text: string }[]>([
-    { sender: "bot", text: "¡Hola! Soy AgroBot. ¿En qué puedo ayudarte hoy?" },
+    { sender: "bot", text: "¡Hola! Soy GDT360 tu invernadero inteligente. ¿En qué puedo ayudarte hoy?" },
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const { liveData } = useData();
+  const { crop, variety, location } = useConfig();
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); // ✅ CORRECCIÓN: optional chaining para evitar errores
@@ -1599,8 +1642,27 @@ const AgroBotChat = () => {
     setMessages(newMessages);
     setInput("");
     setIsLoading(true);
+      const dataContextString = `
+---
+CONTEXTO ACTUAL DEL INVERNADERO:
+- Ubicación: ${location.name}
+- Cultivo: ${crop.name} (Variedad: ${variety.name})
+- Temperatura: ${liveData.temperatura}°C
+- Humedad del Aire: ${liveData.humedadAire}%
+- Humedad del Suelo: ${liveData.humedadSuelo}%
+- pH del Suelo: ${liveData.phSuelo}
+- Nivel de CO2: ${liveData.co2} ppm
+- Nivel del Tanque de Agua: ${liveData.nivelAguaTanque}%
+---
+  `;
+  const prompt = `
+${dataContextString}
+Eres GDT360, la IA que gestiona este invernadero. Tienes acceso a los datos en tiempo real mostrados en el CONTEXTO de arriba.
+Usa esos datos para dar una respuesta experta, relevante y contextualizada a la pregunta del usuario.
+Si la pregunta no se relaciona con el contexto, responde como un asistente general de agronomía.
 
-    const prompt = `Eres GDT360, un asistente de IA experto en agronomía para invernaderos de alta tecnología en Perú. Responde a la siguiente pregunta del usuario de forma concisa y amigable:\n\nUsuario: "${input}"`;
+Usuario: "${input}"
+  `;
     try {
       const apiKey = "AIzaSyAp3C7EUc5HmsmBXxBQC_IhohUNyLOpfWU"; // Recuerda poner tu clave de API de Google aquí
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
