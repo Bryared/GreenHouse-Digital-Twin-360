@@ -9,6 +9,8 @@ import React, {
 // --- IMPORTS PARA EL VISOR 3D ---
 import { Color } from 'three';
 import { IfcViewerAPI } from 'web-ifc-viewer';
+// IMPORTS PARA LA API
+import { readAllResources } from './services/api';
 // --- IMPORTS PARA GRÁFICOS ---
 import {
   AreaChart,
@@ -278,79 +280,74 @@ const ConfigProvider = ({ children, initialConfig, customCrops, addCustomCrop }:
   return <ConfigContext.Provider value={value}>{children}</ConfigContext.Provider>;
 };
 
-// 5. Creamos el DataProvider, también con tipos y la lógica unificada.
+// 5. Creamos el DataProvider, con la lógica de Beebotte integrada y limpia.
 const DataProvider = ({ children, isSimulationMode }: { children: React.ReactNode, isSimulationMode: boolean }) => {
-  const config = useConfig();
-  // ✅ CORRECCIÓN: Se tipa el estado 'liveData' con la interfaz SensorData
-  const [liveData, setLiveData] = useState<SensorData>(() => mockDataGenerator(config?.params));
-  const [history, setHistory] = useState<SensorData[]>([]);
-// Dentro de tu componente DataProvider
+  const config = useConfig();
+  const [liveData, setLiveData] = useState<SensorData>(() => mockDataGenerator(config?.params));
+  const [history, setHistory] = useState<SensorData[]>([]);
 
-    useEffect(() => {
+  useEffect(() => {
     if (!config) return;
 
+    // --- MODO SIMULADO ---
     if (isSimulationMode) {
-        // ... tu lógica de simulación actual (esto no cambia)
-        // ...
+      console.log("🟡 Modo Simulado Activado.");
+      const initialHistory = Array.from({ length: 30 }).map(() => ({ 
+        ...mockDataGenerator(config.params), 
+        name: new Date(Date.now() - Math.random() * 30 * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) 
+      }));
+      setHistory(initialHistory);
+
+      const interval = setInterval(() => {
+        const newData = mockDataGenerator(config.params);
+        setLiveData(newData);
+        setHistory(prev => [...prev.slice(-29), { ...newData, name: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
+      }, 3000);
+
+      return () => clearInterval(interval); // Limpieza para el modo simulado
+
     } else {
-        // ▼▼▼ AQUÍ VA LA LÓGICA DEL MODO CONECTADO ▼▼▼
-        console.log("⚡️ Modo Conectado Activado. Iniciando sondeo de datos reales.");
+      // --- ✅ MODO CONECTADO CON BEEBOTTE (VERSIÓN CORREGIDA) ---
+      console.log("⚡️ Modo Conectado Activado. Conectando a Beebotte...");
 
-        const fetchRealData = async () => {
+      const fetchBeebotteData = async () => {
         try {
-            // Debes confirmar esta URL en la documentación de innovaabc
-            const API_URL = "https://URL_DE_TU_API/data/all"; // Usamos un endpoint que traiga todo
-            const TOKEN = "token_pP0hA2qWlICSEWj8"; // Tu Channel Token
-
-            const response = await fetch(API_URL, {
-            headers: {
-                'Authorization': `Bearer ${TOKEN}` // La autenticación suele ser así
-            }
-            });
-
-            if (!response.ok) {
-            throw new Error("La respuesta de la red no fue exitosa");
-            }
-
-            const realData = await response.json();
-            
-            // 💡 Paso Clave: Mapea los datos de la API a tu interfaz SensorData
-            const formattedData: SensorData = {
-            temperatura: realData.DHT22_Temperatura?.value || 0,
-            humedadAire: realData.DHT22_Humedad?.value || 0,
-            humedadSuelo: realData.Capacitivo_1?.value || 0,
-            nivelAguaTanque: realData.HC_SR04_1?.value || 0,
-            luz: realData.KY018?.value || 0,
-            co2: realData.MQ135?.value || 0,
-            // Rellena los demás campos que necesites...
-            phSuelo: "6.8", // Valor por defecto si no tienes sensor de pH
-            consumoEnergia: "120.5", // Valor por defecto
+          // 1. Llamamos a la función que ya tienes en `api.ts`.
+          //    Toda la lógica de fetch, token y URL está encapsulada aquí.
+          const beebotteData = await readAllResources();
+          
+          // 2. Mapeamos los datos de Beebotte a la estructura que tu app entiende (SensorData).
+          const formattedData: SensorData = {
+            temperatura: String(beebotteData.DHT22_Temperatura ?? '0'),
+            humedadAire: String(beebotteData.DHT22_Humedad ?? '0'),
+            humedadSuelo: String(beebotteData.Capacitivo_1 ?? '0'),
+            luz: beebotteData.KY018 ?? 0,
+            co2: beebotteData.MQ135 ?? 0,
+            nivelAguaTanque: String(beebotteData.HC_SR04_1 ?? '0'),
+            phSuelo: '6.8', // Valor por defecto, ya que no viene de Beebotte
+            consumoEnergia: '120.5', // Valor por defecto
             timestamp: Date.now(),
             name: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            };
+          };
 
-            setLiveData(formattedData);
-            // Opcional: Añadir al historial si lo necesitas
-            setHistory(prev => [...prev.slice(-29), formattedData]);
+          // 3. Actualizamos el estado de la aplicación con los datos reales.
+          setLiveData(formattedData);
+          setHistory(prev => [...prev.slice(-29), formattedData]);
 
         } catch (error) {
-            console.error("❌ Error al obtener datos reales:", error);
+          console.error("❌ Error al obtener datos de Beebotte:", error);
+          // Opcional: podrías mostrar un error en la UI aquí.
         }
-        };
+      };
 
-        // Llama una vez al inicio
-        fetchRealData(); 
-        
-        // Y luego, crea un intervalo para sondear cada 5 segundos (5000 ms)
-        const interval = setInterval(fetchRealData, 5000);
+      fetchBeebotteData(); // Llama a la función una vez al iniciar el modo conectado.
+      const interval = setInterval(fetchBeebotteData, 5000); // Y luego la repite cada 5 segundos.
 
-        // Limpia el intervalo cuando el componente se desmonte o cambien las dependencias
-        return () => clearInterval(interval);
+      return () => clearInterval(interval); // Limpieza para el modo conectado.
     }
-    }, [isSimulationMode, config]); // El array de dependencias ya es correcto
+  }, [isSimulationMode, config]); // Se ejecuta cada vez que cambia el modo o la configuración.
 
-  const value: DataContextValue = { liveData, history }; // ✅ CORRECCIÓN: Se asegura que el objeto coincida con la interfaz
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+  return <DataContext.Provider value={{ liveData, history }}>{children}</DataContext.Provider>;
 };
 
 // ===================================================================================
