@@ -1916,7 +1916,7 @@ const MLOpsMonitor = () => {
         <div className="bg-gray-700/50 p-2 rounded-lg">
           <p className="text-xs text-gray-400">Precisión Actual</p>
           <p className="font-bold text-xl text-green-400">
-            {lastModel.precision.toFixed(1)}% // ✅ CORRECCIÓN: se usa toFixed para mostrar el valor
+            {lastModel.precision.toFixed(1)}%
           </p>
         </div>
         <div className="bg-gray-700/50 p-2 rounded-lg">
@@ -2264,7 +2264,7 @@ const SensorVisualization = ({ item, value }: { item: any; value: string | numbe
 
 // --- PANTALLAS DE FLUJO DE INICIO ---
 
-const LoginScreen = ({ onLogin }: { onLogin: (user: any) => void }) => { // ✅ CORRECCIÓN: Tipado de prop
+const LoginScreen = ({ onLogin }: { onLogin: (user: any) => void }) => {
   const [username, setUsername] = useState("user1");
   const [password, setPassword] = useState("123");
   const [error, setError] = useState("");
@@ -2320,7 +2320,7 @@ interface AppConfig {
   isSimulation: boolean;
 }
 
-const SetupScreen = ({ user, onConfigComplete, availableCrops, addCustomCrop }: { // ✅ CORRECCIÓN: Tipado de props
+const SetupScreen = ({ user, onConfigComplete, availableCrops, addCustomCrop }: {
   user: any;
   onConfigComplete: (selection: AppConfig) => void;
   availableCrops: any;
