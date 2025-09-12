@@ -94,9 +94,9 @@ interface Crop {
 
 interface ConfigProviderProps {
   children: React.ReactNode;
-  initialConfig: any;
+  initialConfig: AppConfig;
   customCrops: Record<string, Crop>; // Usa el tipo Crop aquí
-  addCustomCrop: (id: string, data: any) => void;
+  addCustomCrop: (id: string, data: CustomCropForm) => void;
 }
 
 // --- BASE DE DATOS SIMULADA ---
@@ -2323,8 +2323,8 @@ interface AppConfig {
 const SetupScreen = ({ user, onConfigComplete, availableCrops, addCustomCrop }: {
   user: any;
   onConfigComplete: (selection: AppConfig) => void;
-  availableCrops: any;
-  addCustomCrop: any;
+  availableCrops: Record<string, Crop>;
+  addCustomCrop: (id: string, data: CustomCropForm) => void;
 }) => {
   const [selectedLocation, setSelectedLocation] = useState(Object.keys(LOCATIONS)[0]);
   const [selectedCrop, setSelectedCrop] = useState(Object.keys(availableCrops)[0]);
@@ -2549,8 +2549,8 @@ export default function App() {
   const [user, setUser] = useState<any | null>(null); // ✅ CORRECCIÓN: Tipado de `user`
   // ✅ CORRECCIÓN: Se tipa el estado `config` con la nueva interfaz
   const [config, setConfig] = useState<AppConfig | null>(null);
-  const [customCrops, setCustomCrops] = useState<Record<string, any>>({}); // ✅ CORRECCIÓN: Tipado
-
+  // Dentro de la función App()
+  const [customCrops, setCustomCrops] = useState<Record<string, Crop>>({});
   // Función para añadir un cultivo personalizado a la sesión actual
   // ✅ CORRECCIÓN: Tipado de los parámetros
   const addCustomCrop = (id: string, data: CustomCropForm) => {
