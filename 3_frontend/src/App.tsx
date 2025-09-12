@@ -24,13 +24,18 @@ import {
   LineChart,
   Line,
   BarChart,
-  Bar,
+  Bar, 
+  ScatterChart, 
+  Scatter
 } from "recharts";
 // --- CORRECCIÓN: Se añadieron todos los íconos que faltaban ---
 import {
+  Calendar,
+  Clock,
+  PlusCircle,
+  Trash2,
   Thermometer,
   Droplets,
-  Wind,
   Lightbulb,
   Bot,
   Leaf,
@@ -231,20 +236,49 @@ const useData = () => {
 
 
 const mockDataGenerator = (params: any) => {
-  if (!params) return { name: "default", temperatura: '22.0', humedadAire: '70.0', humedadSuelo: '60.0', luz: 850, co2: 450, phSuelo: '6.5', consumoEnergia: '150.0', nivelAguaTanque: '85.0', timestamp: Date.now() };
-  const { temperatura: tempParams, phSuelo: phParams } = params;
-  return {
-    name: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), // ✅ AÑADE ESTA LÍNEA    
-    temperatura: (tempParams.optimo + (Math.random() - 0.5) * 5).toFixed(1),
-    humedadAire: (65 + Math.random() * 10).toFixed(1),
-    humedadSuelo: (55 + Math.random() * 15).toFixed(1),
-    luz: Math.floor(800 + Math.random() * 400),
-    co2: Math.floor(400 + Math.random() * 150),
-    phSuelo: (phParams.optimo + (Math.random() - 0.5) * 0.5).toFixed(2),
-    consumoEnergia: (150 + Math.random() * 50).toFixed(2),
-    nivelAguaTanque: (85 + Math.random() * 15).toFixed(1),
-    timestamp: Date.now(),
-  };
+  // --- Parámetros base por si algo falla ---
+  if (!params) {
+    return { name: "default", temperatura: '22.0', humedadAire: '70.0', humedadSuelo: '60.0', luz: 850, co2: 450, phSuelo: '6.5', consumoEnergia: '150.0', nivelAguaTanque: '85.0', timestamp: Date.now() };
+  }
+  const { phSuelo: phParams } = params;
+
+  // --- 🧠 MEJORA CLAVE: Simulación de ciclo diario para Lima ---
+  const timestamp = Date.now();
+  const date = new Date(timestamp);
+  const hourOfDay = date.getHours() + date.getMinutes() / 60;
+
+  // Usamos una función seno para simular un ciclo de 24h (-1 en la madrugada, +1 en la tarde)
+  const dayCycle = Math.sin((hourOfDay / 24) * 2 * Math.PI - (Math.PI / 2));
+
+  // 1. Temperatura: Calibrada para Lima (La Molina) en esta estación (aprox. 15°C a 22°C)
+  const limaTempMax = 22;
+  const limaTempMin = 15;
+  const tempRange = (limaTempMax - limaTempMin) / 2;
+  const tempMidPoint = limaTempMin + tempRange;
+  const temperatura = tempMidPoint + (dayCycle * tempRange) + (Math.random() - 0.5); // Pequeña variación
+
+  // 2. Humedad: Inversamente proporcional a la temperatura (típico de La Molina)
+  const humedadAire = 85 - (dayCycle * 15) + (Math.random() - 0.5) * 5;
+
+  // 3. Luz: Simula el amanecer y atardecer
+  const luz = Math.max(0, 50 + (dayCycle * 1400) + Math.random() * 100);
+
+  // 4. Consumo de Energía: Aumenta cuando hay luz (simulando focos de crecimiento)
+  const consumoEnergia = 100 + (luz > 100 ? 150 : 0) + Math.random() * 10;
+
+  // --- Retornamos la misma estructura para no romper nada ---
+  return {
+    name: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    temperatura: temperatura.toFixed(1),
+    humedadAire: humedadAire.toFixed(1),
+    humedadSuelo: (70 - dayCycle * 10).toFixed(1),
+    luz: Math.floor(luz),
+    co2: Math.floor(450 + dayCycle * 50),
+    phSuelo: (phParams.optimo + (Math.random() - 0.5) * 0.2).toFixed(2),
+    consumoEnergia: consumoEnergia.toFixed(2),
+    nivelAguaTanque: (85 - Math.random() * 0.05).toFixed(1),
+    timestamp: timestamp,
+  };
 };
 
 // 4. Creamos el ConfigProvider, añadiendo tipos a las props.
@@ -470,6 +504,84 @@ const HistoryChart = () => {
   );
 };
 
+    const EnvironmentalAnalysisModule = () => {
+      const { history } = useData();
+
+      // Cálculos estadísticos que se actualizan eficientemente
+      const stats = useMemo(() => {
+        if (!history || history.length === 0) return null;
+        
+        // Convertimos los datos a números para los cálculos
+        const temps = history.map(h => parseFloat(h.temperatura));
+        
+        const sum = temps.reduce((a, b) => a + b, 0);
+        const mean = sum / temps.length;
+        
+        const sortedTemps = [...temps].sort((a, b) => a - b);
+        const mid = Math.floor(sortedTemps.length / 2);
+        const median = sortedTemps.length % 2 === 0 ? (sortedTemps[mid - 1] + sortedTemps[mid]) / 2 : sortedTemps[mid];
+
+        const stdDev = Math.sqrt(temps.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b, 0) / temps.length);
+
+        return {
+          mean: mean.toFixed(2),
+          median: median.toFixed(2),
+          stdDev: stdDev.toFixed(2),
+          min: Math.min(...temps).toFixed(2),
+          max: Math.max(...temps).toFixed(2),
+        };
+      }, [history]);
+      
+      // Preparamos los datos para el gráfico de dispersión
+      const scatterData = history.map(h => ({
+          temperatura: parseFloat(h.temperatura),
+          humedadAire: parseFloat(h.humedadAire)
+      }));
+
+      return (
+        <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
+          {/* GRÁFICO PRINCIPAL (AHORA SE VERÁ GENIAL) */}
+          <div className="lg:col-span-2 h-80">
+            <HistoryChart />
+          </div>
+
+          {/* TARJETAS DE RESUMEN ESTADÍSTICO */}
+          <Card>
+            <h3 className="text-lg font-semibold text-white mb-4">Análisis Estadístico: Temperatura (°C)</h3>
+            {stats && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
+                <div className="bg-gray-900/50 p-3 rounded-lg"><p className="text-sm text-gray-400">Media</p><p className="text-2xl font-bold">{stats.mean}</p></div>
+                <div className="bg-gray-900/50 p-3 rounded-lg"><p className="text-sm text-gray-400">Mediana</p><p className="text-2xl font-bold">{stats.median}</p></div>
+                <div className="bg-gray-900/50 p-3 rounded-lg"><p className="text-sm text-gray-400">Desv. Est.</p><p className="text-2xl font-bold">{stats.stdDev}</p></div>
+                <div className="lg:col-span-3 grid grid-cols-2 gap-4">
+                    <div className="bg-gray-900/50 p-3 rounded-lg"><p className="text-sm text-gray-400">Mínimo</p><p className="text-2xl font-bold text-blue-400">{stats.min}</p></div>
+                    <div className="bg-gray-900/50 p-3 rounded-lg"><p className="text-sm text-gray-400">Máximo</p><p className="text-2xl font-bold text-red-400">{stats.max}</p></div>
+                </div>
+              </div>
+            )}
+          </Card>
+          
+          {/* GRÁFICO DE CORRELACIÓN */}
+            <Card>
+                <h3 className="text-lg font-semibold text-white mb-4">Correlación: Temperatura vs. Humedad</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                    {/* ✅ USA SCATTERCHART EN LUGAR DE BARCHART */}
+                    <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: -10 }}>
+                        <CartesianGrid stroke="#4a5568" />
+                        <XAxis type="number" dataKey="temperatura" name="Temperatura" unit="°C" stroke="#a0aec0" domain={['dataMin - 1', 'dataMax + 1']} />
+                        <YAxis type="number" dataKey="humedadAire" name="Humedad" unit="%" stroke="#a0aec0" />
+                        <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: "#1a202c", border: "1px solid #4a5568" }} />
+                        {/* ✅ USA EL COMPONENTE SCATTER PARA PINTAR LOS PUNTOS */}
+                        <Scatter name="Lecturas" data={scatterData} fill="#8884d8" />
+                    </ScatterChart>
+                </ResponsiveContainer>
+            </Card>
+        </div>
+      );
+    };
+
+
+
 const CameraFeed = () => {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   useEffect(() => {
@@ -518,7 +630,7 @@ const BimViewer = () => {
       backgroundColor: new Color(0x1a202c),
     });
 
-    viewer.grid.setGrid(100000, 100000);
+    viewer.grid.setGrid(10000, 10000);
     viewer.axes.setAxes();
 
     async function loadIfcModel() {
@@ -787,27 +899,9 @@ const DashboardModule = () => {
           </div>
         </div>
       )}
-      {activeTab === "ambiental" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
-          <HistoryChart />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <KpiCard
-              icon={<Sun className="h-8 w-8" />}
-              title="Luz (PAR)"
-              value={liveData.luz}
-              unit="µmol/m²"
-              color="text-yellow-400"
-            />
-            <KpiCard
-              icon={<Wind className="h-8 w-8" />}
-              title="CO2"
-              value={liveData.co2}
-              unit="ppm"
-              color="text-gray-300"
-            />
-          </div>
-        </div>
-      )}
+      {activeTab === "ambiental" && (
+      <EnvironmentalAnalysisModule />
+      )}
       {activeTab === "cultivo" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in h-[500px]">
           <CameraFeed />
@@ -1478,6 +1572,171 @@ const SimulatorModuleTycoon = () => {
       </div>
     </div>
   );
+};
+
+// --- CAPA 6: MÓDULO DE AUTOMATIZACIÓN Y PROGRAMACIÓN ---
+
+// Primero, definamos la estructura de una tarea programada
+interface ScheduledTask {
+  id: number;
+  name: string;
+  actuator: 'riego' | 'ventilacion' | 'luces' | 'desinfeccion' | 'rellenoTanque';
+  startTime: string; // Formato "HH:MM"
+  duration: number; // en minutos
+  repeat: 'daily' | 'once' | 'weekends';
+  active: boolean;
+}
+
+// Datos de ejemplo para las tareas
+const initialTasks: ScheduledTask[] = [
+  { id: 1, name: 'Riego Matutino Z1', actuator: 'riego', startTime: '08:00', duration: 15, repeat: 'daily', active: true },
+  { id: 2, name: 'Ventilación Mediodía', actuator: 'ventilacion', startTime: '12:00', duration: 60, repeat: 'daily', active: true },
+  { id: 3, name: 'Ciclo de Luz Nocturno', actuator: 'luces', startTime: '22:00', duration: 240, repeat: 'daily', active: false },
+  { id: 4, name: 'Desinfección Semanal', actuator: 'desinfeccion', startTime: '10:00', duration: 5, repeat: 'weekends', active: true },
+];
+
+const AutomationModule = () => {
+  const [tasks, setTasks] = useState<ScheduledTask[]>(initialTasks);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
+
+  const handleToggleTask = (taskId: number) => {
+    setTasks(tasks.map(task => 
+      task.id === taskId ? { ...task, active: !task.active } : task
+    ));
+  };
+
+  const handleEditTask = (task: ScheduledTask) => {
+    setEditingTask(task);
+    setIsModalOpen(true);
+  };
+  
+  const handleDeleteTask = (taskId: number) => {
+    if (window.confirm("¿Estás seguro de que quieres eliminar esta tarea programada?")) {
+        setTasks(tasks.filter(task => task.id !== taskId));
+    }
+  };
+
+  const handleSaveTask = (taskToSave: ScheduledTask) => {
+    if (taskToSave.id === 0) { // Es una nueva tarea
+      taskToSave.id = Date.now(); // Genera un ID simple
+      setTasks([...tasks, taskToSave]);
+    } else { // Es una edición
+      setTasks(tasks.map(task => task.id === taskToSave.id ? taskToSave : task));
+    }
+    setIsModalOpen(false);
+    setEditingTask(null);
+  };
+  
+  const actuatorIcons: Record<ScheduledTask['actuator'], React.ReactNode> = {
+    riego: <Droplets className="text-blue-400" />,
+    ventilacion: <Fan className="text-gray-400" />,
+    luces: <Sun className="text-yellow-400" />,
+    desinfeccion: <Recycle className="text-purple-400" />,
+    rellenoTanque: <Pipette className="text-cyan-400" />,
+  };
+
+  return (
+    <div className="p-6 animate-fade-in">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-3xl font-bold text-white flex items-center"><Calendar className="mr-3" /> Agenda de Tareas</h2>
+        <button onClick={() => { setEditingTask(null); setIsModalOpen(true); }} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center transition">
+          <PlusCircle className="mr-2" />
+          Programar Tarea
+        </button>
+      </div>
+      
+      <Card>
+        <div className="space-y-4">
+          {tasks.map(task => (
+            <div key={task.id} className="bg-gray-900/50 p-4 rounded-lg flex items-center justify-between transition hover:bg-gray-800/50">
+              <div className="flex items-center">
+                <div className="mr-4">{actuatorIcons[task.actuator]}</div>
+                <div>
+                  <p className={`font-bold ${task.active ? 'text-white' : 'text-gray-500 line-through'}`}>{task.name}</p>
+                  <p className="text-sm text-gray-400 flex items-center">
+                    <Clock size={14} className="mr-2" />
+                    {`Cada día a las ${task.startTime}, durante ${task.duration} min.`}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-4">
+                <ToggleButton isActive={task.active} onToggle={() => handleToggleTask(task.id)} label="" icon={<></>}/>
+                <button onClick={() => handleEditTask(task)} className="text-gray-400 hover:text-white"><Sparkles size={18} /></button>
+                <button onClick={() => handleDeleteTask(task.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={18} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {isModalOpen && (
+        <TaskModal
+          task={editingTask}
+          onClose={() => setIsModalOpen(false)}
+          onSave={handleSaveTask}
+        />
+      )}
+    </div>
+  );
+};
+
+
+// Componente Modal para crear y editar tareas
+const TaskModal = ({ task, onClose, onSave }: { task: ScheduledTask | null; onClose: () => void; onSave: (task: ScheduledTask) => void; }) => {
+  const [formData, setFormData] = useState<ScheduledTask>(
+    task || { id: 0, name: '', actuator: 'riego', startTime: '08:00', duration: 15, repeat: 'daily', active: true }
+  );
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: name === 'duration' ? parseInt(value) : value }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+      <Card className="w-full max-w-lg">
+        <form onSubmit={handleSubmit}>
+          <h3 className="text-2xl font-bold text-green-400 mb-6">{task ? 'Editar Tarea' : 'Programar Nueva Tarea'}</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-gray-300">Nombre de la Tarea</label>
+              <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Ej: Riego de emergencia" required className="w-full p-2 mt-1 bg-gray-700 rounded-md text-white"/>
+            </div>
+            <div>
+              <label className="text-sm text-gray-300">Actuador a Programar</label>
+              <select name="actuator" value={formData.actuator} onChange={handleChange} className="w-full p-2 mt-1 bg-gray-700 rounded-md text-white">
+                <option value="riego">Sistema de Riego</option>
+                <option value="ventilacion">Ventilación</option>
+                <option value="luces">Luces de Crecimiento</option>
+                <option value="desinfeccion">Cámara de Desinfección</option>
+                <option value="rellenoTanque">Rellenar Tanque</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-gray-300">Hora de Inicio</label>
+                  <input type="time" name="startTime" value={formData.startTime} onChange={handleChange} required className="w-full p-2 mt-1 bg-gray-700 rounded-md text-white"/>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-300">Duración (minutos)</label>
+                  <input type="number" name="duration" value={formData.duration} onChange={handleChange} min="1" required className="w-full p-2 mt-1 bg-gray-700 rounded-md text-white"/>
+                </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-4 mt-8">
+            <button type="button" onClick={onClose} className="py-2 px-4 bg-gray-600 hover:bg-gray-700 rounded-lg transition">Cancelar</button>
+            <button type="submit" className="py-2 px-6 bg-green-600 hover:bg-green-700 rounded-lg transition">Guardar Tarea</button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
 };
 
 // --- CAPA 3: OPERADOR COGNITIVO (MÓDULO PERFECCIONADO) ---
@@ -2729,6 +2988,11 @@ const MainAppView = ({config, setConfig, setUser }: MainAppViewProps) => {
       component: <DashboardModule />,
       icon: Building,
     },
+    automation: {
+      label: "Automatización",
+      component: <AutomationModule />,
+      icon: Calendar,
+    },
     simulator: {
       label: "Oráculo",
     component: <OracleModule />,
